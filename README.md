@@ -2,15 +2,47 @@
 
 Six AI bots play a Texas Hold'em tournament. You watch.
 
-Each bot has a personality and a mood that shifts as it wins and loses, decides what to do
-with a small local classifier, and thinks out loud through a tiny local LLM. The audience sees
-everything - all hole cards, every private thought. The bots see only what a real player would.
-Nobody at the table is human.
+Each bot has a personality and a mood that shifts as it wins and loses, decides what to do with
+a small local classifier, and thinks out loud through a tiny local LLM. The audience sees
+everything — every hole card, every private thought. The bots see only what a real player
+would. Nobody at the table is human.
 
 Everything runs locally. No cloud, no API keys.
 
     make install
-    make models-up      # jeff + llama.cpp containers
+    make models-up      # jeff + llama.cpp containers, on 8781 and 8782
     make dev            # then open http://127.0.0.1:8780
 
-See `PROJECT.md` for the specification and `CLAUDE.md` for how to work on it.
+Deployed, it is tailnet-only at `https://poker.<tailnet>.ts.net`:
+
+    make deploy-build && make deploy-up
+    tailscale serve --service=svc:poker --bg 8780   # once, needs admin approval
+
+## What it is made of
+
+- **`api/`** — a Deno server that owns every rule, every decision and all of the pacing.
+  - `engine/` is pure Texas Hold'em: deck, evaluator, equity, betting, side pots. No AI in it.
+  - `bots/` turns game state into something a model can read, and its answer back into a move.
+  - `inference/` is the single-slot queue in front of both models, and their clients.
+  - `broadcast/` is the SSE hub and the beat clock.
+- **`client/`** — React, built by esbuild, rendering the event stream. It holds no poker rules.
+- **`shared/`** — the wire contract, imported by both sides.
+
+## Useful commands
+
+    make test                  # 46 tests, including a full tournament with both models down
+    make simulate              # headless tournaments, per-bot behaviour stats
+    make sanity                # hand-written situations vs the rule bot
+    make SOURCE=jeff sanity    # the same set vs the classifier, as a tuning report
+    make bench                 # what the models actually cost on this machine
+    curl -s localhost:8780/api/debug | jq    # queue, latencies, fallbacks, memory
+
+## It works without the models
+
+That is not a fallback in the emergency sense — on a four-core machine with no GPU it is a
+normal way to run. Rule-based bots play recognisably distinct poker on their own, template
+monologues carry the personalities, and a full tournament finishes with both services stopped.
+Jeff makes the bots less predictable; it is not what makes them characters.
+
+See `PROJECT.md` for the specification, `CLAUDE.md` for how to work on it, and
+`~/claude_harness/reports/2026-09-29-jeff-classifier-on-cpu.md` for the model setup.
