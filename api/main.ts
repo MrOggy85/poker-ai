@@ -1,5 +1,6 @@
-import { init } from './server.ts';
+import { Director, Hub, init } from './server.ts';
 import { loadConfig } from './config.ts';
+import { randomDecider } from './bots/random.ts';
 import logger from './logger.ts';
 
 const DEV = Deno.env.get('DEV') === '1';
@@ -49,4 +50,11 @@ logger.info('starting', {
   monologue: config.monologue.enabled ? config.monologue.url : 'disabled',
 });
 
-Deno.serve({ hostname: HOST, port: PORT }, init(config));
+const hub = new Hub();
+// Milestone 3 plays random-but-legal poker. The decider is injected precisely so that
+// swapping in the rule-based bots, and then Jeff, changes nothing else.
+const director = new Director(config, hub, randomDecider(config.seed));
+
+Deno.serve({ hostname: HOST, port: PORT }, init(config, hub, director));
+
+void director.run();

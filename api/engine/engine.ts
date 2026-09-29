@@ -249,8 +249,32 @@ export function advance(previous: HandState): Step {
   return { state, events: [{ type: 'board', street, cards }] };
 }
 
+/**
+ * Returns the part of a bet nobody matched. If one seat is in for more than every other seat
+ * put together could call, that excess was never at risk and must come back before the pots
+ * are built.
+ *
+ * Without this, stacks still come out right - the uncalled chips form a layer only the bettor
+ * is eligible for, so they win them straight back - but the audience sees an inflated pot and
+ * a showdown where someone "wins" their own money. That is wrong on screen, which is the only
+ * place it shows.
+ */
+function refundUncalled(state: HandState): void {
+  const commitments = state.seats.map((seat) => seat.hand).sort((a, b) => b - a);
+  const excess = commitments[0] - (commitments[1] ?? 0);
+  if (excess <= 0) return;
+
+  const seat = state.seats.find((candidate) => candidate.hand === commitments[0]);
+  if (!seat) return;
+  seat.hand -= excess;
+  seat.stack += excess;
+  // Getting chips back means the seat is no longer all-in, which matters for the view.
+  if (seat.stack > 0) seat.allIn = false;
+}
+
 function settle(previous: HandState): Step {
   const state = cloneState(previous);
+  refundUncalled(state);
   const live = livePlayers(state);
   const pots = buildPots(state.seats);
 

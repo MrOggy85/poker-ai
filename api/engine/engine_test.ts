@@ -119,7 +119,11 @@ Deno.test('everyone folding ends the hand and the last player takes the pot', ()
   assert(state.complete);
   assertEquals(state.awards.length, 1);
   assertEquals(state.awards[0].seat, 2, 'the big blind wins when it folds round');
-  assertEquals(state.awards[0].amount, 150);
+  // 100, not 150: the big blind's own 50 of overhang was never called, so it comes back
+  // rather than being won. Same net result, and it is what real clients report - "uncalled
+  // bet (50) returned, wins pot (100)".
+  assertEquals(state.awards[0].amount, 100);
+  assertEquals(state.seats[2].stack, 10_000 + 50, 'net winnings are the small blind');
   assertEquals(state.awards[0].handScore, null, 'no hand was ever shown');
 });
 
@@ -193,4 +197,37 @@ Deno.test('the same seed and actions reproduce the hand exactly', () => {
 Deno.test('the pot never exceeds what players put in', () => {
   const state = playRandomHand([3000, 3000, 3000], 0, 'potsize');
   assertEquals(potSize(state), state.seats.reduce((sum, seat) => sum + seat.hand, 0));
+});
+
+Deno.test('an uncalled bet is returned rather than won', () => {
+  // Seat 3 raises to 3000 and everyone folds. The pot it wins is the blinds plus its own 100
+  // big-blind-matching chips - not its whole 3000, which nobody ever called.
+  let state = start(6);
+  state = play(state, [{ kind: 'raise', amount: 3000 }, ...Array(5).fill({ kind: 'fold' })]);
+  assert(state.complete);
+  assertEquals(state.awards.length, 1);
+  assertEquals(state.awards[0].seat, 3);
+  // The raise is returned down to the next-highest commitment, the big blind's 100, so the
+  // pot is 50 + 100 + 100 rather than anything involving the uncalled 2900.
+  assertEquals(state.awards[0].amount, 250);
+  assertEquals(state.seats[3].stack, 10_000 + 150, 'net winnings are the two blinds');
+});
+
+Deno.test('an uncalled portion of a call-for-less is returned', () => {
+  // Seat 3 bets 5000; seat 4 can only cover 1200 and is all-in; everyone else folds. Seat 3
+  // risked 1200, not 5000.
+  let state = start(6, [10_000, 10_000, 10_000, 10_000, 1200, 10_000]);
+  state = play(state, [
+    { kind: 'raise', amount: 5000 }, // seat 3
+    { kind: 'call' }, // seat 4, all-in for 1200
+    { kind: 'fold' }, // seat 5
+    { kind: 'fold' }, // seat 0
+    { kind: 'fold' }, // seat 1
+    { kind: 'fold' }, // seat 2
+  ]);
+  assert(state.complete);
+  const total = state.seats.reduce((sum, seat) => sum + seat.stack, 0);
+  assertEquals(total, 10_000 * 5 + 1200, 'chips conserved');
+  // Whoever won, the pot at stake was 1200 + 1200 + the two blinds.
+  assertEquals(state.awards.reduce((sum, award) => sum + award.amount, 0), 1200 + 1200 + 150);
 });
