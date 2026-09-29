@@ -62,6 +62,8 @@ Deno.test('nothing a bot is told during a whole tournament mentions another hand
   const config = loadConfig();
   config.seed = 'hiding-e2e';
   config.pacing.speed = 'turbo';
+  config.pacing.idleWhenUnwatched = false;
+  config.table.autoRestart = false;
   config.decision.enabled = false;
   config.monologue.enabled = false;
 

@@ -9,12 +9,21 @@ export interface Config {
     startingChips: number;
     handsPerLevel: number;
     blindSchedule: [number, number][];
+    /** Start another tournament when one finishes, so the page is never a dead table. */
+    autoRestart: boolean;
+    restartDelayMs: number;
   };
   equity: { samples: number };
   pacing: {
     speed: Speed;
     minActionMs: Record<Speed, number>;
     handEndPauseMs: Record<Speed, number>;
+    /**
+     * Hold the game while no browser is connected. On for the real server; headless callers
+     * (the simulation, the tests) turn it off, or they would block forever waiting for an
+     * audience that is never going to arrive.
+     */
+    idleWhenUnwatched: boolean;
   };
   mood: { driftChancePerHand: number; decayHands: number };
   decision: {

@@ -4,6 +4,8 @@
     "players": 6,
     "startingChips": 10000,
     "handsPerLevel": 10,
+    "autoRestart": true,
+    "restartDelayMs": 20000,
     "blindSchedule": [
       [50, 100],
       [75, 150],
@@ -22,6 +24,7 @@
   },
   "pacing": {
     "speed": "normal",
+    "idleWhenUnwatched": true,
     "minActionMs": { "slow": 3500, "normal": 1500, "fast": 600, "turbo": 0 },
     "handEndPauseMs": { "slow": 5000, "normal": 2500, "fast": 1000, "turbo": 0 }
   },

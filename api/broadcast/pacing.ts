@@ -28,6 +28,7 @@ export class Cancelled extends Error {
 export class Pacer {
   #speed: Speed;
   #paused = false;
+  #idle = false;
   #resumeWaiters: (() => void)[] = [];
   #timers = new Set<{ timer: ReturnType<typeof setTimeout>; reject: (error: Error) => void }>();
 
@@ -39,8 +40,32 @@ export class Pacer {
     return this.#speed;
   }
 
+  /** Paused by a person. Distinct from idling because nobody is watching. */
   get paused(): boolean {
     return this.#paused;
+  }
+
+  get idle(): boolean {
+    return this.#idle;
+  }
+
+  get held(): boolean {
+    return this.#paused || this.#idle;
+  }
+
+  /**
+   * Stops the game while no browser is connected.
+   *
+   * Measured on this machine, a tournament in progress costs about two of the four cores,
+   * sustained for hours - the decision model is busy roughly seventy percent of wall-clock
+   * time, because a decision takes longer than the beat that is meant to hide it. Nobody is
+   * watching most of the time, and a poker game with no audience is pure waste, so the loop
+   * holds until someone opens the page.
+   */
+  setIdle(idle: boolean): void {
+    if (this.#idle === idle) return;
+    this.#idle = idle;
+    if (!idle) this.#release();
   }
 
   setSpeed(speed: Speed): void {
@@ -54,14 +79,19 @@ export class Pacer {
   resume(): void {
     if (!this.#paused) return;
     this.#paused = false;
+    this.#release();
+  }
+
+  #release(): void {
+    if (this.held) return;
     const waiters = this.#resumeWaiters;
     this.#resumeWaiters = [];
     for (const waiter of waiters) waiter();
   }
 
-  /** Awaited before anything that costs CPU. Resolves immediately unless paused. */
+  /** Awaited before anything that costs CPU. Resolves at once unless paused or unwatched. */
   gate(): Promise<void> {
-    if (!this.#paused) return Promise.resolve();
+    if (!this.held) return Promise.resolve();
     return new Promise((resolve) => this.#resumeWaiters.push(resolve));
   }
 

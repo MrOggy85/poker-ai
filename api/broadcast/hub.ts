@@ -27,9 +27,20 @@ export class Hub {
   #subscribers = new Set<Subscriber>();
   #ring: { id: number; event: ServerEvent }[] = [];
   #seq = 0;
+  #onAudienceChange: ((watching: boolean) => void) | null = null;
 
   get subscriberCount(): number {
     return this.#subscribers.size;
+  }
+
+  /** Fired when the first viewer arrives or the last one leaves. */
+  onAudienceChange(handler: (watching: boolean) => void): void {
+    this.#onAudienceChange = handler;
+    handler(this.#subscribers.size > 0);
+  }
+
+  #announce(): void {
+    this.#onAudienceChange?.(this.#subscribers.size > 0);
   }
 
   emit(event: ServerEvent): void {
@@ -43,6 +54,7 @@ export class Hub {
         subscriber.send(chunk);
       } catch {
         this.#subscribers.delete(subscriber);
+        this.#announce();
       }
     }
   }
@@ -85,6 +97,7 @@ export class Hub {
           },
         };
         this.#subscribers.add(self);
+        this.#announce();
 
         // Without traffic, an idle proxy will eventually drop the connection. A comment line
         // is ignored by EventSource and costs nothing.
@@ -99,6 +112,7 @@ export class Hub {
       cancel: () => {
         if (keepalive !== undefined) clearInterval(keepalive);
         if (self) this.#subscribers.delete(self);
+        this.#announce();
       },
     });
 

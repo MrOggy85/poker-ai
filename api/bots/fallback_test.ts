@@ -22,6 +22,8 @@ async function playThrough(label: string, handler: (request: Request) => Promise
   const config = loadConfig();
   config.seed = `fallback-${label}`;
   config.pacing.speed = 'turbo';
+  config.pacing.idleWhenUnwatched = false;
+  config.table.autoRestart = false;
   config.decision.enabled = true;
   config.decision.url = `http://127.0.0.1:${port}`;
   // Short, so a hanging service does not make the test take minutes.
@@ -68,6 +70,8 @@ Deno.test('a tournament finishes with no models at all', async () => {
   const config = loadConfig();
   config.seed = 'fallback-none';
   config.pacing.speed = 'turbo';
+  config.pacing.idleWhenUnwatched = false;
+  config.table.autoRestart = false;
   config.decision.enabled = false;
   config.monologue.enabled = false;
 

@@ -91,6 +91,15 @@ export class Director {
     this.#pacer = new Pacer(config.pacing.speed);
     this.#moods = new Moods(config.mood.driftChancePerHand, config.mood.decayHands);
     this.#seatPlayers();
+
+    // No audience, no game. A tournament in progress costs about half this machine, and
+    // playing one to an empty room is the easiest CPU to give back.
+    if (config.pacing.idleWhenUnwatched) {
+      hub.onAudienceChange((watching) => {
+        this.#pacer.setIdle(!watching);
+        if (watching && this.#finished && this.#config.table.autoRestart) this.restart();
+      });
+    }
   }
 
   get pacer(): Pacer {
@@ -109,6 +118,8 @@ export class Director {
       handNo: this.#handNo,
       speed: this.#pacer.speed,
       paused: this.#pacer.paused,
+      idle: this.#pacer.idle,
+      viewers: this.#hub.subscriberCount,
       bots: this.#brain.stats?.() ?? 'not reported',
       memory: {
         rssMb: Math.round(Deno.memoryUsage().rss / 1024 / 1024),
@@ -270,6 +281,10 @@ export class Director {
 
     try {
       while (this.#running && this.#epoch === epoch && this.#players.filter((p) => p.stack > 0).length > 1) {
+        // Before the hand, not just before each decision: dealing a hand nobody will see is
+        // still work, and it leaves the table mid-hand for whoever connects next.
+        await this.#pacer.gate();
+        if (this.#epoch !== epoch) return;
         await this.#playHand(epoch);
       }
       if (this.#epoch === epoch && this.#running) this.#finish();
@@ -281,6 +296,20 @@ export class Director {
     }
   }
 
+  /**
+   * A finished tournament leaves a dead table on screen forever, so another one starts. Only
+   * while someone is watching - otherwise this would defeat the idle gate entirely.
+   */
+  #scheduleRestart(): void {
+    if (!this.#config.table.autoRestart) return;
+    const epoch = this.#epoch;
+    setTimeout(() => {
+      if (this.#epoch !== epoch || !this.#finished) return;
+      if (this.#pacer.idle) return; // nobody is watching; the audience handler will start it
+      this.restart();
+    }, this.#config.table.restartDelayMs);
+  }
+
   #finish(): void {
     // Whoever is left standing takes first place.
     const survivor = this.#players.find((player) => player.stack > 0 && player.place === null);
@@ -289,6 +318,7 @@ export class Director {
     this.#note('tournament over');
     this.#emit({ type: 'tournament_finished' });
     logger.info('tournament finished', { seed: this.#seed, hands: this.#handNo });
+    this.#scheduleRestart();
   }
 
   async #playHand(epoch: number): Promise<void> {

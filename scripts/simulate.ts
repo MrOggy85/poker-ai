@@ -59,6 +59,8 @@ for (let run = 0; run < tournaments; run++) {
   const config = loadConfig();
   config.seed = `${baseSeed}-${run}`;
   config.pacing.speed = 'turbo';
+  config.pacing.idleWhenUnwatched = false;
+  config.table.autoRestart = false;
   config.monologue.enabled = false;
   config.decision.enabled = false;
   // Headless runs would otherwise litter the log directory with a file per tournament.
