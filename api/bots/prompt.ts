@@ -18,7 +18,10 @@ export function buildState(view: BotView): string {
   const parts: string[] = [];
 
   parts.push(`You are ${self.name}. ${self.personality.description}`);
-  parts.push(`You are ${self.personality.playStyle}, and you ${self.personality.bluffTendency}.`);
+  // Two separate sentences: gluing playStyle and bluffTendency together with "and you"
+  // produced "you are balanced and you bluffs when...", which is the sort of thing that
+  // quietly degrades a classifier reading prose.
+  parts.push(`Your style: ${self.personality.playStyle}. You ${self.personality.bluffTendency}.`);
   parts.push(`Your mood is ${self.mood}.`);
 
   const hole = self.hole.map(cardToString).join(' and ');
@@ -26,9 +29,12 @@ export function buildState(view: BotView): string {
   const board = boardWords(table.board);
   if (board) parts.push(board);
 
-  parts.push(`Your hand is ${equityWords(view.equity.share)}.`);
+  parts.push(`Your hand is ${equityWords(view.equity.share, table.live)}.`);
   parts.push(`${fieldWords(table.live)}, and ${positionWords(view)}.`);
   parts.push(`${potOddsWords(table.toCall, table.pot)}, and ${stackWords(self.stack, table.bigBlind)}.`);
+  // Without this the model has no reason to prefer surviving: every hand looks like a
+  // one-off bet rather than one hand of a tournament you can be knocked out of.
+  parts.push('This is a tournament. If you lose all your chips you are out for good.');
 
   const last = lastAction(view);
   if (last) parts.push(last);
@@ -69,13 +75,50 @@ export function buildInstructions(view: BotView): string {
  * The monologue prompt. It gets the action already chosen, so a thought can never contradict
  * what the bot then does, and it is told in words why - never a probability.
  */
+/**
+ * The monologue prompt, shaped as a few-shot completion.
+ *
+ * A 0.5B model given instructions simply restates them: asked in prose for The Maniac's inner
+ * thought, it returned "The Maniac is wildly loose and aggressive, always on edge, and I love
+ * chaos" - the prompt, back again. A worked pattern with two examples and an open quote gives
+ * it something to continue rather than something to obey, which is the only thing that
+ * reliably works at this size.
+ */
+/**
+ * Lines used only to show the model the shape of the answer.
+ *
+ * They deliberately belong to nobody in the cast. The first version used The Rock and The
+ * Maniac as examples, and the model handed The Rock's own example line straight back as its
+ * answer - at 0.5B, copying the nearest example is a perfectly good way to continue a
+ * pattern. Exported so the caller can reject an answer that is merely one of these.
+ */
+export const MONOLOGUE_EXAMPLES = [
+  'Let them have that one.',
+  'Someone here is about to make a mistake.',
+];
+
+/**
+ * The monologue prompt, shaped as a few-shot completion.
+ *
+ * A 0.5B model given instructions simply restates them: asked in prose for The Maniac's inner
+ * thought, it returned "The Maniac is wildly loose and aggressive, always on edge, and I love
+ * chaos" - the prompt, back again. A worked pattern ending in an open quote gives it something
+ * to continue rather than something to obey, which is the only thing that reliably works at
+ * this size.
+ */
 export function buildMonologuePrompt(view: BotView, actionText: string, reason: string): string {
   const { self } = view;
   return [
-    `${self.name} is ${self.personality.playStyle}. ${self.personality.description}`,
-    `Their voice is ${self.personality.voice}. Right now they feel ${self.mood}.`,
-    `They just ${actionText}, because ${reason}.`,
-    'Write their single inner thought, in first person, in at most 20 words.',
-    'Do not mention odds, percentages or probabilities.',
-  ].join(' ');
+    'Short inner thoughts from poker players. First person, in character, one line each.',
+    '',
+    'Player: a cautious veteran, dry and unimpressed, feeling calm. Just folded a weak hand.',
+    `Thought: "${MONOLOGUE_EXAMPLES[0]}"`,
+    '',
+    'Player: a restless gambler, loud and reckless, feeling confident. Just raised a strong hand.',
+    `Thought: "${MONOLOGUE_EXAMPLES[1]}"`,
+    '',
+    `Player: ${self.name}, ${self.personality.voice}, feeling ${self.mood}. ` +
+    `Just ${actionText} with a hand that is ${reason}.`,
+    'Thought: "',
+  ].join('\n');
 }

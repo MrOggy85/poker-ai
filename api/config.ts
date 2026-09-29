@@ -17,7 +17,18 @@ export interface Config {
     handEndPauseMs: Record<Speed, number>;
   };
   mood: { driftChancePerHand: number; decayHands: number };
-  decision: { enabled: boolean; url: string; model: string; timeoutMs: number; busyRetries: number };
+  decision: {
+    enabled: boolean;
+    url: string;
+    model: string;
+    timeoutMs: number;
+    busyRetries: number;
+    /**
+     * Below this chance-corrected confidence, the classifier is treated as having no opinion
+     * and the rule bot decides. 0 would be a uniform distribution.
+     */
+    minConfidence: number;
+  };
   monologue: { enabled: boolean; url: string; timeoutMs: number; maxTokens: number; routineChance: number };
   log: { dir: string };
 }

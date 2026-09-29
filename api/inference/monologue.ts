@@ -48,27 +48,27 @@ export class LlamaClient implements MonologueClient {
       const text = await this.#queue.submit({
         kind: 'monologue',
         timeoutMs: this.#config.monologue.timeoutMs,
+        // Raw completion, not chat. The prompt is a few-shot pattern ending in an open
+        // quote, and a 0.5B model continues a pattern far more reliably than it follows an
+        // instruction - asked conversationally, it restates the instruction instead.
         run: async (signal) => {
-          const response = await fetch(`${this.#config.monologue.url}/v1/chat/completions`, {
+          const response = await fetch(`${this.#config.monologue.url}/completion`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-              messages: [
-                {
-                  role: 'system',
-                  content:
-                    'You write one short inner thought in first person, in character. Never mention odds or probabilities. Never explain yourself.',
-                },
-                { role: 'user', content: prompt },
-              ],
-              max_tokens: this.#config.monologue.maxTokens,
+              prompt,
+              n_predict: this.#config.monologue.maxTokens,
               temperature: 0.9,
+              top_p: 0.92,
+              // The closing quote of the line it is completing, and anything that looks like
+              // the start of another example.
+              stop: ['"', '\n', 'Player:', 'Thought:'],
             }),
             signal,
           });
           if (!response.ok) throw new Error(`monologue ${response.status}`);
           const body = await response.json();
-          return String(body.choices?.[0]?.message?.content ?? '');
+          return String(body.content ?? '');
         },
       });
 

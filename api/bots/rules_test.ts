@@ -12,7 +12,7 @@ import { simulate } from '../../scripts/simulate.ts';
  * absolute cutoff folded everything preflop for everybody and the six bots played identically.
  */
 Deno.test('the personalities are measurably different', async () => {
-  const tallies = await simulate(2, 'personality-test');
+  const { tallies, handsPerTournament } = await simulate(2, 'personality-test');
 
   const vpip = (id: string) => {
     const entry = tallies.get(id)!;
@@ -44,4 +44,10 @@ Deno.test('the personalities are measurably different', async () => {
     `the calling station should call more than the rock: ${calling('station')} vs ${calling('rock')}`,
   );
   assert(aggression('rookie') < 0.15, `the rookie should rarely be aggressive: ${aggression('rookie')}`);
+
+  // A tournament that ends in a few hands means everyone is shoving, which is both bad poker
+  // and unwatchable. It happened for real once, so it is guarded.
+  for (const hands of handsPerTournament) {
+    assert(hands > 15, `a tournament lasted only ${hands} hands - the bots are shoving`);
+  }
 });

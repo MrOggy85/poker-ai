@@ -15,27 +15,36 @@ import type { BotView } from './view.ts';
  * bot's behaviour, so treat these strings as an interface.
  */
 
-export function equityWords(share: number): string {
-  if (share > 0.8) return 'very strong, almost certainly ahead';
-  if (share > 0.6) return 'strong, probably ahead';
-  if (share > 0.4) return 'medium, could go either way';
-  if (share > 0.2) return 'weak, probably behind';
+/**
+ * Hand strength relative to an average hand at this table, not the raw win chance.
+ *
+ * Absolute thresholds are wrong multiway and it is not a subtle error: six-handed, every hand
+ * averages a one-in-six share, so aces and seven-deuce both came out as "very weak, almost
+ * certainly behind". The model was told every hand was garbage and had nothing to work with -
+ * it answered with a near-uniform distribution. `live` includes the reader.
+ */
+export function equityWords(share: number, live: number): string {
+  const strength = share * Math.max(2, live);
+  if (strength >= 2.0) return 'very strong, almost certainly ahead';
+  if (strength >= 1.45) return 'strong, probably ahead';
+  if (strength >= 1.05) return 'playable, about average for this table';
+  if (strength >= 0.7) return 'weak, probably behind';
   return 'very weak, almost certainly behind';
 }
 
 export function potOddsWords(toCall: number, pot: number): string {
-  if (toCall <= 0) return 'it costs nothing to stay in';
+  if (toCall <= 0) return 'It costs nothing to stay in';
   const price = toCall / (pot + toCall);
-  if (price < 0.1) return 'calling is almost free';
-  if (price < 0.25) return 'calling is cheap compared to the pot';
-  if (price < 0.4) return 'calling is a fair price';
-  if (price < 0.6) return 'calling is expensive';
-  return 'calling is very expensive';
+  if (price < 0.1) return 'Calling is almost free';
+  if (price < 0.25) return 'Calling is cheap compared to the pot';
+  if (price < 0.4) return 'Calling is a fair price';
+  if (price < 0.6) return 'Calling is expensive';
+  return 'Calling is very expensive';
 }
 
 export function stackWords(stack: number, bigBlind: number): string {
   const blinds = stack / bigBlind;
-  if (blinds < 10) return 'you are short stacked and close to elimination';
+  if (blinds < 10) return 'you are short stacked and close to being knocked out';
   if (blinds < 25) return 'your stack is below average';
   if (blinds < 60) return 'your stack is comfortable';
   return 'you have one of the big stacks';
@@ -102,7 +111,7 @@ export function boardWords(board: readonly Card[]): string {
 
 /** How many opponents are still contesting the pot, in words. */
 export function fieldWords(live: number): string {
-  if (live <= 2) return 'you are heads up';
-  if (live === 3) return 'two opponents are still in';
-  return `${live - 1} opponents are still in`;
+  if (live <= 2) return 'You are heads up';
+  if (live === 3) return 'Two opponents are still in';
+  return `${live - 1} opponents are still in the hand`;
 }

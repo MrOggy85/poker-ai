@@ -28,8 +28,12 @@ export interface Tally {
   places: number[];
 }
 
-export async function simulate(tournaments: number, baseSeed: string): Promise<Map<string, Tally>> {
+export async function simulate(
+  tournaments: number,
+  baseSeed: string,
+): Promise<{ tallies: Map<string, Tally>; handsPerTournament: number[] }> {
 const tallies = new Map<string, Tally>();
+const handsPerTournament: number[] = [];
 
 function tally(id: string, name: string): Tally {
   let entry = tallies.get(id);
@@ -96,13 +100,14 @@ for (let run = 0; run < tournaments; run++) {
 
   const director = new Director(config, new Hub(), counting);
   await director.run();
+  handsPerTournament.push(director.snapshot().handNo);
 
   for (const seat of director.snapshot().seats) {
     tally(seat.id, seat.name).places.push(seat.place ?? 1);
   }
 }
 
-  return tallies;
+  return { tallies, handsPerTournament };
 }
 
 if (import.meta.main) {
@@ -111,11 +116,17 @@ if (import.meta.main) {
     return index >= 0 ? Deno.args[index + 1] : fallback;
   };
   const tournaments = Number(arg('tournaments', '3'));
-  const tallies = await simulate(tournaments, arg('seed', 'sim'));
+  const { tallies, handsPerTournament } = await simulate(tournaments, arg('seed', 'sim'));
 
   const pct = (part: number, whole: number) => whole === 0 ? '   -' : `${((part / whole) * 100).toFixed(0).padStart(3)}%`;
 
-  console.log(`\n${tournaments} tournaments\n`);
+  const totalHands = handsPerTournament.reduce((a, b) => a + b, 0);
+  // A tournament that ends in a handful of hands is the loudest possible signal that the bots
+  // are shoving every pot - it is the thing to look at first.
+  console.log(
+    `\n${tournaments} tournaments, ${totalHands} hands ` +
+      `(${(totalHands / tournaments).toFixed(0)} per tournament, shortest ${Math.min(...handsPerTournament)})\n`,
+  );
   console.log('bot                  vpip  fold  check  call  aggr  allin   avg place');
   console.log('-'.repeat(72));
 

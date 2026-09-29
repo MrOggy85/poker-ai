@@ -10,7 +10,7 @@ import type { Brain, Decision, DecisionRequest } from '../tournament/director.ts
 import { temperatureFor } from './mood.ts';
 import { OpponentNotes } from './notes.ts';
 import { buildOptions, type Option, type OptionKey } from './options.ts';
-import { buildInstructions, buildMonologuePrompt, buildState } from './prompt.ts';
+import { buildInstructions, buildMonologuePrompt, buildState, MONOLOGUE_EXAMPLES } from './prompt.ts';
 import { ruleDecision } from './rules.ts';
 import { sample } from './sampling.ts';
 import { templateThought } from './templates.ts';
@@ -37,6 +37,7 @@ export class BotBrain implements Brain {
   #queue: InferenceQueue;
   #ruleFallbacks = 0;
   #illegalChoices = 0;
+  #lowConfidence = 0;
 
   constructor(config: Config, queue = new InferenceQueue()) {
     this.#config = config;
@@ -54,6 +55,7 @@ export class BotBrain implements Brain {
       queue: this.#queue.stats(),
       decision: this.#decision?.stats() ?? 'disabled',
       ruleFallbacks: this.#ruleFallbacks,
+      lowConfidence: this.#lowConfidence,
       illegalChoices: this.#illegalChoices,
     };
   }
@@ -115,6 +117,17 @@ export class BotBrain implements Brain {
         criteria,
       });
 
+      // Jeff's confidence is chance-corrected: 0 means a uniform distribution, i.e. no
+      // opinion at all. Sampling from that is not "surprising play", it is noise - and with a
+      // low-temperature bot like The Shark, p^7 turns the largest speck of noise into a
+      // deterministic choice. Measured on a real preflop spot the confidence was 0.097 and
+      // every bot shoved, ending a six-player tournament in one hand. Below the floor, poker
+      // logic decides instead.
+      if (answer.confidence < this.#config.decision.minConfidence) {
+        this.#lowConfidence++;
+        return { ...ruleDecision(view, rng), source: 'rules' };
+      }
+
       const temperature = temperatureFor(view.self.personality, view.self.mood);
       const chosen = sample(answer.probabilities, temperature, rng, options.map((entry) => entry.key));
       const option = options.find((entry) => entry.key === chosen);
@@ -141,7 +154,7 @@ export class BotBrain implements Brain {
     view: BotView,
     key: OptionKey,
     option: Option,
-    source: 'jeff' | 'rules',
+    _source: 'jeff' | 'rules',
     request: DecisionRequest,
   ): Promise<Decision['thought']> {
     // Not every routine action deserves a line, or the table becomes a wall of text - and on
@@ -157,10 +170,12 @@ export class BotBrain implements Brain {
     if (!this.#monologue || !this.#monologue.available()) return template;
 
     try {
-      const reason = `${equityWords(view.equity.share)}${source === 'jeff' ? '' : ''}`;
       const text = await this.#monologue.write(
-        buildMonologuePrompt(view, describeChoice(option), `their hand is ${reason}`),
+        buildMonologuePrompt(view, describeChoice(option), equityWords(view.equity.share, view.table.live)),
       );
+      // A small model sometimes just hands back the nearest example. That is not a thought,
+      // and a template line is better than a borrowed one.
+      if (MONOLOGUE_EXAMPLES.some((example) => text.startsWith(example))) return template;
       return { text, source: 'llm' };
     } catch {
       // Expected often enough on this hardware that it is not worth a warning.
