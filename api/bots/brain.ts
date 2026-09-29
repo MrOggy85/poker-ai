@@ -2,43 +2,74 @@ import { makeRng } from '../../shared/rng.ts';
 import type { Config } from '../config.ts';
 import { estimateEquity } from '../engine/equity.ts';
 import type { HandState } from '../engine/types.ts';
-import type { Brain, DecisionRequest, Decision } from '../tournament/director.ts';
-import { OpponentNotes } from './notes.ts';
-import { buildOptions } from './options.ts';
-import { ruleDecision } from './rules.ts';
-import { templateThought } from './templates.ts';
-import { buildBotView } from './view.ts';
+import { JeffClient, type DecisionClient } from '../inference/decision.ts';
+import { LlamaClient, type MonologueClient } from '../inference/monologue.ts';
+import { InferenceQueue } from '../inference/queue.ts';
 import logger from '../logger.ts';
+import type { Brain, Decision, DecisionRequest } from '../tournament/director.ts';
+import { temperatureFor } from './mood.ts';
+import { OpponentNotes } from './notes.ts';
+import { buildOptions, type Option, type OptionKey } from './options.ts';
+import { buildInstructions, buildMonologuePrompt, buildState } from './prompt.ts';
+import { ruleDecision } from './rules.ts';
+import { sample } from './sampling.ts';
+import { templateThought } from './templates.ts';
+import { buildBotView, type BotView } from './view.ts';
+import { equityWords } from './words.ts';
 
 /**
  * One decision, end to end: filtered view, equity, choose, narrate.
  *
- * The pipeline is the point. Everything here works from a `BotView`, which by construction
- * cannot contain another player's cards, mood or thoughts - so information hiding is a
- * property of the types rather than a rule people have to remember.
+ * Everything here works from a `BotView`, which by construction cannot contain another
+ * player's cards, mood or thoughts - so information hiding is a property of the types rather
+ * than a rule people have to remember.
+ *
+ * Both models are optional at every step. Jeff falls back to the rule bot, the monologue LLM
+ * falls back to a template, and a full tournament completes with neither running. On a machine
+ * where a decision costs about four seconds, that is not defensive programming, it is the
+ * difference between a game and a slideshow.
  */
 export class BotBrain implements Brain {
   #config: Config;
   #notes = new OpponentNotes();
+  #decision: DecisionClient | null;
+  #monologue: MonologueClient | null;
+  #queue: InferenceQueue;
+  #ruleFallbacks = 0;
+  #illegalChoices = 0;
 
-  constructor(config: Config) {
+  constructor(config: Config, queue = new InferenceQueue()) {
     this.#config = config;
+    this.#queue = queue;
+    this.#decision = config.decision.enabled ? new JeffClient(config, queue) : null;
+    this.#monologue = config.monologue.enabled ? new LlamaClient(config, queue) : null;
   }
 
-  decide(request: DecisionRequest): Promise<Decision> {
-    const { state, seat, handNo, personality, mood } = request;
+  get queue(): InferenceQueue {
+    return this.#queue;
+  }
 
-    const equityRng = makeRng(this.#config.seed, `equity:${personality.id}:h${handNo}:${state.street}`);
+  stats(): Record<string, unknown> {
+    return {
+      queue: this.#queue.stats(),
+      decision: this.#decision?.stats() ?? 'disabled',
+      ruleFallbacks: this.#ruleFallbacks,
+      illegalChoices: this.#illegalChoices,
+    };
+  }
+
+  #viewFor(request: DecisionRequest): BotView {
+    const { state, seat, handNo, personality, mood } = request;
     const live = state.seats.filter((candidate) => !candidate.folded).length;
     const equity = estimateEquity(
       state.seats[seat].hole!,
       state.board,
       Math.max(1, live - 1),
       this.#config.equity.samples,
-      equityRng,
+      makeRng(this.#config.seed, `equity:${personality.id}:h${handNo}:${state.street}:${state.history.length}`),
     );
 
-    const view = buildBotView(state, seat, {
+    return buildBotView(state, seat, {
       personality,
       mood,
       equity,
@@ -49,35 +80,98 @@ export class BotBrain implements Brain {
       ),
       nameOf: request.nameOf,
     });
+  }
 
-    const choiceRng = makeRng(
+  async decide(request: DecisionRequest): Promise<Decision> {
+    const view = this.#viewFor(request);
+    const options = buildOptions(view);
+    const rng = makeRng(
       this.#config.seed,
-      `choice:${personality.id}:h${handNo}:${state.street}:${state.history.length}`,
+      `choice:${request.personality.id}:h${request.handNo}:${view.table.street}:${request.state.history.length}`,
     );
-    const { key, option } = ruleDecision(view, choiceRng);
 
-    // Not every routine action deserves a line, or the table turns into a wall of text.
-    const talkative = key === 'A' || key === 'R1' || key === 'R2' || key === 'B1' || key === 'B2';
-    const thoughtRng = makeRng(
+    const { key, option, source } = await this.#choose(view, options, rng);
+    const thought = await this.#narrate(view, key, option, source, request);
+
+    return { action: option.action, thought };
+  }
+
+  async #choose(
+    view: BotView,
+    options: Option[],
+    rng: ReturnType<typeof makeRng>,
+  ): Promise<{ key: OptionKey; option: Option; source: 'jeff' | 'rules' }> {
+    if (!this.#decision || !this.#decision.available() || options.length < 2) {
+      return { ...ruleDecision(view, rng), source: 'rules' };
+    }
+
+    try {
+      const criteria: Record<string, string> = {};
+      for (const entry of options) criteria[entry.key] = entry.text;
+
+      const answer = await this.#decision.ask({
+        state: buildState(view),
+        instructions: buildInstructions(view),
+        criteria,
+      });
+
+      const temperature = temperatureFor(view.self.personality, view.self.mood);
+      const chosen = sample(answer.probabilities, temperature, rng, options.map((entry) => entry.key));
+      const option = options.find((entry) => entry.key === chosen);
+
+      if (!option) {
+        // Should be unreachable - `sample` only ever returns a key we offered - but a wrong
+        // action is a crash, so it gets a branch rather than a non-null assertion.
+        this.#illegalChoices++;
+        logger.warn('jeff chose an option that was not offered', { chosen, offered: options.map((e) => e.key) });
+        return { ...ruleDecision(view, rng), source: 'rules' };
+      }
+
+      return { key: option.key, option, source: 'jeff' };
+    } catch (error) {
+      this.#ruleFallbacks++;
+      logger.warn('decision fell back to rules', {
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      return { ...ruleDecision(view, rng), source: 'rules' };
+    }
+  }
+
+  async #narrate(
+    view: BotView,
+    key: OptionKey,
+    option: Option,
+    source: 'jeff' | 'rules',
+    request: DecisionRequest,
+  ): Promise<Decision['thought']> {
+    // Not every routine action deserves a line, or the table becomes a wall of text - and on
+    // this machine every line costs a second of CPU.
+    const notable = key === 'A' || key.startsWith('R') || key.startsWith('B');
+    const rng = makeRng(
       this.#config.seed,
-      `thought:${personality.id}:h${handNo}:${state.street}:${state.history.length}`,
+      `thought:${request.personality.id}:h${request.handNo}:${view.table.street}:${request.state.history.length}`,
     );
-    const speaks = talkative || thoughtRng.chance(this.#config.monologue.routineChance);
+    if (!notable && !rng.chance(this.#config.monologue.routineChance)) return null;
 
-    return Promise.resolve({
-      action: option.action,
-      thought: speaks
-        ? { text: templateThought(personality, mood, key, thoughtRng), source: 'template' as const }
-        : null,
-    });
+    const template = { text: templateThought(request.personality, request.mood, key, rng), source: 'template' as const };
+    if (!this.#monologue || !this.#monologue.available()) return template;
+
+    try {
+      const reason = `${equityWords(view.equity.share)}${source === 'jeff' ? '' : ''}`;
+      const text = await this.#monologue.write(
+        buildMonologuePrompt(view, describeChoice(option), `their hand is ${reason}`),
+      );
+      return { text, source: 'llm' };
+    } catch {
+      // Expected often enough on this hardware that it is not worth a warning.
+      return template;
+    }
   }
 
   /** Public information only: what everyone at the table saw. */
   onHandFinished(state: HandState): void {
     this.#notes.observeHand(state.history, state.seats.map((seat) => seat.id));
 
-    // A player who reached a showdown and lost with a hand they had bet hard is the only
-    // "caught bluffing" signal available from public information.
     const shown = state.seats.filter((seat) => !seat.folded);
     if (shown.length < 2) return;
     const winners = new Set(state.awards.map((award) => state.seats[award.seat].id));
@@ -89,21 +183,27 @@ export class BotBrain implements Brain {
       if (wasAggressive) this.#notes.observeShowdown(seat.id, true);
     }
   }
+}
 
-  /** Exposed so the sanity script and tests can inspect what a bot was actually offered. */
-  optionsFor(state: HandState, seat: number, request: Omit<DecisionRequest, 'state' | 'seat'>) {
-    const equity = { win: 0, tie: 0, share: 0.5 };
-    return buildOptions(buildBotView(state, seat, {
-      personality: request.personality,
-      mood: request.mood,
-      equity,
-      notes: [],
-      nameOf: request.nameOf,
-    }));
+function describeChoice(option: Option): string {
+  switch (option.action.kind) {
+    case 'fold':
+      return 'folded';
+    case 'check':
+      return 'checked';
+    case 'call':
+      return 'called';
+    case 'bet':
+      return 'bet';
+    case 'raise':
+      return 'raised';
   }
 }
 
-export function ruleBrain(config: Config): Brain {
-  logger.info('using rule-based bots', { seed: config.seed });
+export function makeBrain(config: Config): BotBrain {
+  logger.info('bots ready', {
+    decisions: config.decision.enabled ? config.decision.url : 'rules only',
+    monologues: config.monologue.enabled ? config.monologue.url : 'templates only',
+  });
   return new BotBrain(config);
 }
