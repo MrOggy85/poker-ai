@@ -20,6 +20,16 @@ export interface Personality {
   samplingTemperature: number;
   voice: string;
   defaultMood: Mood;
+  /**
+   * How often this bot puts money in with a marginal hand, 0 to 1. Drives the rule-based bot,
+   * and is what makes the personalities measurably different in `simulate.ts` even with no
+   * model running.
+   */
+  looseness: number;
+  /** How readily it bets and raises rather than calling, 0 to 1. */
+  aggression: number;
+  /** How often it fires with a hand that cannot win, 0 to 1. */
+  bluffiness: number;
 }
 
 export const CAST: Personality[] = [
@@ -33,6 +43,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 0.2,
     voice: 'terse and unimpressed',
     defaultMood: 'calm',
+    looseness: 0.15,
+    aggression: 0.35,
+    bluffiness: 0.04,
   },
   {
     id: 'maniac',
@@ -44,6 +57,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 1.1,
     voice: 'loud and gleeful',
     defaultMood: 'confident',
+    looseness: 0.92,
+    aggression: 0.9,
+    bluffiness: 0.55,
   },
   {
     id: 'station',
@@ -55,6 +71,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 0.6,
     voice: 'friendly and a bit oblivious',
     defaultMood: 'calm',
+    looseness: 0.8,
+    aggression: 0.05,
+    bluffiness: 0.0,
   },
   {
     id: 'shark',
@@ -66,6 +85,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 0.15,
     voice: 'clinical, faintly condescending',
     defaultMood: 'calm',
+    looseness: 0.35,
+    aggression: 0.62,
+    bluffiness: 0.22,
   },
   {
     id: 'rookie',
@@ -77,6 +99,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 0.5,
     voice: 'anxious, second-guessing everything',
     defaultMood: 'nervous',
+    looseness: 0.28,
+    aggression: 0.18,
+    bluffiness: 0.08,
   },
   {
     id: 'showman',
@@ -88,6 +113,9 @@ export const CAST: Personality[] = [
     samplingTemperature: 0.9,
     voice: 'theatrical, talks about himself in the third person',
     defaultMood: 'confident',
+    looseness: 0.72,
+    aggression: 0.78,
+    bluffiness: 0.45,
   },
 ];
 

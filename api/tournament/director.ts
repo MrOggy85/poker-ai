@@ -12,6 +12,7 @@ import { estimateEquity } from '../engine/equity.ts';
 import { describe } from '../engine/evaluator.ts';
 import type { Action, HandState } from '../engine/types.ts';
 import { castOf, type Personality } from '../bots/personalities.ts';
+import { Moods } from '../bots/mood.ts';
 
 /**
  * Runs the tournament: seating, blinds, eliminations, and the loop that turns one decision at
@@ -23,10 +24,13 @@ import { castOf, type Personality } from '../bots/personalities.ts';
 
 export interface DecisionRequest {
   state: HandState;
+  /** Index within the hand, which is not the table seat once players have been eliminated. */
   seat: number;
   handNo: number;
   personality: Personality;
   mood: Mood;
+  /** Hand seat index to display name, so a brain never has to know the seating map. */
+  nameOf: (handSeat: number) => string;
 }
 
 export interface Decision {
@@ -34,7 +38,15 @@ export interface Decision {
   thought: { text: string; source: 'llm' | 'template' } | null;
 }
 
-export type Decide = (request: DecisionRequest) => Promise<Decision>;
+/**
+ * Everything the director needs from the bots. Keeping it this narrow is what lets random
+ * bots, rule-based bots and Jeff-backed bots share one loop.
+ */
+export interface Brain {
+  decide(request: DecisionRequest): Promise<Decision>;
+  /** Public information only - called once per hand so opponent notes can be updated. */
+  onHandFinished?(state: HandState): void;
+}
 
 interface Player {
   seat: number;
@@ -50,8 +62,9 @@ const LOG_LIMIT = 200;
 export class Director {
   #config: Config;
   #hub: Hub;
-  #decide: Decide;
+  #brain: Brain;
   #pacer: Pacer;
+  #moods: Moods;
 
   #epoch = 0;
   #seed: string;
@@ -68,12 +81,13 @@ export class Director {
   #thinking: number | null = null;
   #equities = new Map<number, number>();
 
-  constructor(config: Config, hub: Hub, decide: Decide) {
+  constructor(config: Config, hub: Hub, brain: Brain) {
     this.#config = config;
     this.#hub = hub;
-    this.#decide = decide;
+    this.#brain = brain;
     this.#seed = config.seed;
     this.#pacer = new Pacer(config.pacing.speed);
+    this.#moods = new Moods(config.mood.driftChancePerHand, config.mood.decayHands);
     this.#seatPlayers();
   }
 
@@ -98,6 +112,7 @@ export class Director {
     this.#hand = null;
     this.#thinking = null;
     this.#equities.clear();
+    this.#moods?.reset();
   }
 
   // --- blinds ---------------------------------------------------------------------------
@@ -291,6 +306,7 @@ export class Director {
 
     this.#hand = state;
     for (const player of this.#players) player.thought = null;
+    const stacksBefore = new Map(contenders.map((player) => [player.seat, player.stack]));
 
     this.#note(`hand ${this.#handNo}`);
     this.#emit({
@@ -361,6 +377,8 @@ export class Director {
     }
 
     this.#syncStacks(state, toTableSeat);
+    this.#brain.onHandFinished?.(state);
+    this.#updateMoods(state, toTableSeat, stacksBefore);
     this.#eliminate();
     this.#equities.clear();
     await this.#pacer.beat('handEnd');
@@ -377,12 +395,13 @@ export class Director {
     const startedAt = performance.now();
     let decision: Decision;
     try {
-      decision = await this.#decide({
+      decision = await this.#brain.decide({
         state,
         seat: handSeat,
         handNo: this.#handNo,
         personality: player.personality,
         mood: player.mood,
+        nameOf: (index) => this.#players[toTableSeat(index)].personality.name,
       });
     } finally {
       this.#thinking = null;
@@ -449,6 +468,42 @@ export class Director {
       equities.push({ seat: toTableSeat(index), equity: share });
     }
     this.#emit({ type: 'equity_updated', equities });
+  }
+
+  #updateMoods(
+    state: HandState,
+    toTableSeat: (handSeat: number) => number,
+    stacksBefore: Map<number, number>,
+  ): void {
+    const [, bigBlind] = this.#blinds();
+    const winners = new Set(state.awards.map((award) => award.seat));
+
+    for (let index = 0; index < state.seats.length; index++) {
+      const tableSeat = toTableSeat(index);
+      const player = this.#players[tableSeat];
+      const seat = state.seats[index];
+      const before = stacksBefore.get(tableSeat) ?? seat.stack;
+
+      // A bluff got through only if the pot was taken without anyone seeing the hand.
+      const shown = state.seats.filter((candidate) => !candidate.folded).length > 1;
+      const wonWithBluff = winners.has(index) && !shown &&
+        state.history.some((action) => action.id === seat.id && (action.kind === 'bet' || action.kind === 'raise'));
+
+      const changed = this.#moods.update(player.personality, {
+        stackBefore: before,
+        stackAfter: seat.stack,
+        bigBlind,
+        foldedEarly: seat.folded && seat.hand <= bigBlind,
+        wonWithBluff,
+      }, makeRng(this.#seed, `mood:h${this.#handNo}:${player.personality.id}`));
+
+      if (changed) {
+        const from = player.mood;
+        player.mood = changed.mood;
+        this.#emit({ type: 'mood_changed', seat: tableSeat, from, to: changed.mood, reason: changed.reason });
+        this.#note(`${player.personality.name} is ${changed.mood} - ${changed.reason}`);
+      }
+    }
   }
 
   #syncStacks(state: HandState, toTableSeat: (handSeat: number) => number): void {

@@ -1,6 +1,6 @@
 import { Director, Hub, init } from './server.ts';
 import { loadConfig } from './config.ts';
-import { randomDecider } from './bots/random.ts';
+import { ruleBrain } from './bots/brain.ts';
 import logger from './logger.ts';
 
 const DEV = Deno.env.get('DEV') === '1';
@@ -51,9 +51,9 @@ logger.info('starting', {
 });
 
 const hub = new Hub();
-// Milestone 3 plays random-but-legal poker. The decider is injected precisely so that
-// swapping in the rule-based bots, and then Jeff, changes nothing else.
-const director = new Director(config, hub, randomDecider(config.seed));
+// The brain is injected so the same loop runs rule-based bots and Jeff-backed ones. The
+// rule bots are not a stub: they are the permanent fallback for when Jeff is slow or down.
+const director = new Director(config, hub, ruleBrain(config));
 
 Deno.serve({ hostname: HOST, port: PORT }, init(config, hub, director));
 

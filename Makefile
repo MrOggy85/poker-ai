@@ -1,4 +1,4 @@
-.PHONY: install dev build start check fmt test bench deploy-build deploy-up deploy-logs models-up
+.PHONY: install dev build start check fmt test bench simulate deploy-build deploy-up deploy-logs models-up
 
 # deno lives in ~/.deno/bin and is deliberately not on PATH on this machine, so every
 # target spells it out. Override with `make DENO=deno ...` anywhere it *is* on PATH.
@@ -34,6 +34,11 @@ test:
 fmt:
 	$(DENO) fmt --config api/deno.json api scripts shared
 	$(DENO) fmt --config client/deno.json client
+
+# Plays whole tournaments headlessly and reports how each bot behaved. The check behind
+# "each bot's behaviour is visibly distinct".
+simulate:
+	$(DENO) run -A scripts/simulate.ts $(ARGS)
 
 # Measures what Jeff and the monologue LLM actually cost on this box. The whole design
 # hinges on these numbers - see CLAUDE.md.
