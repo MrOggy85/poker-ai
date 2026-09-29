@@ -32,15 +32,35 @@ on this machine.
   path and prepends it to `PATH` before calling npm, because `client/package.json`'s scripts
   invoke a bare `deno` - they have to, since the Docker client stage *does* have it on PATH.
   Running `npm run build` directly from `client/` will fail with `sh: 1: deno: not found`.
-- **esbuild is imported as `npm:esbuild@0.25.0` from Deno**, not executed from `node_modules`.
-  `~/.npmrc` sets `ignore-scripts=true`, so npm never fetches esbuild's platform binary; Deno
-  fetches its own. Do not "fix" this by switching to a node_modules invocation.
+- **`~/.npmrc` sets `ignore-scripts=true`, and that is fine** - esbuild's native binary arrives
+  as the `@esbuild/linux-x64` optional dependency, which has no `scripts` block at all. The
+  postinstall it skips only replaces the CLI shim, which nothing here uses: `build.ts` drives
+  the JS API. **Never add a project-local `.npmrc` with `ignore-scripts=false`** to "fix" a
+  build error - that silently undoes the operator's supply-chain hardening. If the binary ever
+  does go missing, point `ESBUILD_BINARY_PATH` at it from the Makefile instead.
 - **The docker context is wrong by default** - the active context is `rootless` but the daemon
   is rootful. Always `docker -c default`.
 - **No `Math.random` anywhere in `api/`.** Everything random draws from the seeded `Rng` in
   `shared/rng.ts`, or games stop being replayable from their seed.
 - **Information hiding is a hard requirement** (PROJECT.md section 10) with a test behind it.
-  A bot brain takes a `PlayerView`, never the full `HandState`. Never widen that signature.
+  A bot brain takes a `BotView`, never the full `HandState`. Never widen that signature.
+
+## Conventions worth knowing before you touch the engine
+
+- **A bet or raise `amount` is the total street commitment - the "raise to" number, not the
+  increment.** `call` carries no amount at all. Every amount a bot produces is derived by code
+  from `LegalActions`; nothing parses a number out of a model reply. Engines that leave this
+  unwritten get it wrong in both directions.
+- **RNG streams are derived and named, never one global sequence** (`shared/rng.ts`). The deck
+  for hand 12 draws from `deck:h12`, an equity estimate from `equity:p3:h12:river`, action
+  sampling from `sample:p3:h12:flop:0`. That is what lets you change the equity sample count,
+  or add a randomised feature, without reshuffling every deck in every historical seed.
+- **A short all-in does not reopen the betting** for players who have already matched. It is
+  the rule hobby engines get wrong most often, so it has its own test.
+- **Option keys are semantic and stable** (`F`, `X`, `C`, `B1`, `B2`, `R1`, `R2`, `A`), not
+  positional `"1".."5"`. With positional keys, "3" means something different depending on which
+  actions happen to be legal - which is exactly the inconsistency Jeff's README warns costs you
+  game results.
 
 ## Jeff: corrections to PROJECT.md
 
