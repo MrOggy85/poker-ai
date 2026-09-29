@@ -58,14 +58,19 @@ if [[ ! -d "$WEIGHTS/jeff-0.8b" ]]; then
     || { echo_red "checkpoint download failed"; exit 1; }
 fi
 
+# Three threads, not two. Measured on this box: 2 threads 8.3 s per decision, 3 threads 3.7 s,
+# 4 threads 3.1 s. The cliff is between 2 and 3, so 3 buys almost all of the speed while
+# leaving a core for Paperless and everything else. Keep OMP_NUM_THREADS equal to --cpus:
+# torch does not read the cgroup quota, so leaving it at nproc runs 4 threads inside a
+# 3-core budget and is measurably *slower* than 3.
 echo_yellow "starting poker-jeff..."
 $DOCKER rm -f poker-jeff >/dev/null 2>&1 || true
 $DOCKER run -d \
   --name poker-jeff \
   --restart unless-stopped \
-  --cpus=2 \
-  -e OMP_NUM_THREADS=2 \
-  -e MKL_NUM_THREADS=2 \
+  --cpus=3 \
+  -e OMP_NUM_THREADS=3 \
+  -e MKL_NUM_THREADS=3 \
   -p 127.0.0.1:$JEFF_PORT:8781 \
   -v "$WEIGHTS:/weights" \
   poker-jeff:latest \

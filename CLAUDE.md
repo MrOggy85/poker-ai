@@ -80,6 +80,46 @@ source, and the source wins.
 - **`uv sync` pulls the CUDA torch stack** (~2-3 GB of GPU libraries that cannot run here),
   because `pyproject.toml` pins `torch==2.14.0` with no CPU index. Set `UV_TORCH_BACKEND=cpu`.
 
+## Measured on this machine (2026-09-29)
+
+| | median | p95 |
+|---|---|---|
+| Jeff decision, 2 threads | 8.3 s | 8.7 s |
+| Jeff decision, **3 threads** | **3.7 s** | 3.8 s |
+| Jeff decision, 4 threads | 3.1 s | 3.3 s |
+| Monologue, Qwen2.5-0.5B Q4_K_M, 2 threads | 1.2 s | 1.7 s |
+
+Realistic prompts (~200 input tokens, five worded options), not toy strings - token count is
+most of the cost for a one-pass classifier. The cliff between 2 and 3 threads is why
+`models-up.sh` runs Jeff at `--cpus=3`: it buys nearly all the speed and still leaves a core
+for the rest of the machine. **Keep `OMP_NUM_THREADS` equal to `--cpus`** - torch does not read
+the cgroup quota, so the default (`nproc` = 4) runs 4 threads inside a 3-core budget and is
+slower than 3.
+
+At 3.7 s Jeff is in the hot path as PROJECT.md intends, but only just: at `slow` pacing the
+beat already on screen hides most of it. If it ever regresses, the escape hatches in order are
+pacing lookahead, then asking Jeff only about close decisions, then `decision.enabled = false`.
+
+## Jeff container traps
+
+- **`flash-linear-attention` must not be installed.** 18 of the model's 24 layers are linear
+  attention, and transformers dispatches those to fla's Triton kernels whenever fla merely
+  *imports*. fla prints "Triton is not supported on current platform, roll back to CPU" and
+  then calls a Triton kernel anyway, so **every** request dies with
+  `RuntimeError: 0 active drivers ([])`. Removing it makes transformers fall back to
+  `torch_chunk_gated_delta_rule`, which is pure PyTorch and works. Nothing in jeff's own source
+  imports fla.
+- **The distribution is `fla-core`, not `flash-linear-attention`** as `pyproject.toml` spells
+  it. `uv pip uninstall flash-linear-attention` prints a warning and does nothing. The
+  Dockerfile therefore verifies with an `import fla` that must fail.
+- **Do not run the server through `uv run`.** uv re-syncs on every invocation, which reinstalls
+  the dev group *and* fla, and makes container start depend on PyPI being reachable. The CMD
+  calls `/opt/jeff/.venv/bin/jeff-serve` directly.
+- **529 confirmed live**: a second concurrent request gets `529`, header `retry-after: 1`, body
+  `{"detail":"The model is busy. Retry shortly."}`. In production a 529 means something other
+  than the inference queue is talking to Jeff - a stray benchmark, a second container - so
+  count it and surface it rather than treating it as normal load shedding.
+
 ## This machine
 
 Intel N100: 4 cores, **no GPU**, 15 GiB RAM. PROJECT.md's Apple Silicon / MLX assumptions do
