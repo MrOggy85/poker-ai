@@ -31,9 +31,10 @@ export interface Tally {
 export async function simulate(
   tournaments: number,
   baseSeed: string,
-): Promise<{ tallies: Map<string, Tally>; handsPerTournament: number[] }> {
+): Promise<{ tallies: Map<string, Tally>; handsPerTournament: number[]; brainStats: Record<string, unknown> }> {
 const tallies = new Map<string, Tally>();
 const handsPerTournament: number[] = [];
+let lastBrainStats: Record<string, unknown> = {};
 
 function tally(id: string, name: string): Tally {
   let entry = tallies.get(id);
@@ -105,13 +106,14 @@ for (let run = 0; run < tournaments; run++) {
   const director = new Director(config, new Hub(), counting);
   await director.run();
   handsPerTournament.push(director.snapshot().handNo);
+  lastBrainStats = brain.stats();
 
   for (const seat of director.snapshot().seats) {
     tally(seat.id, seat.name).places.push(seat.place ?? 1);
   }
 }
 
-  return { tallies, handsPerTournament };
+  return { tallies, handsPerTournament, brainStats: lastBrainStats };
 }
 
 if (import.meta.main) {
@@ -120,7 +122,7 @@ if (import.meta.main) {
     return index >= 0 ? Deno.args[index + 1] : fallback;
   };
   const tournaments = Number(arg('tournaments', '3'));
-  const { tallies, handsPerTournament } = await simulate(tournaments, arg('seed', 'sim'));
+  const { tallies, handsPerTournament, brainStats } = await simulate(tournaments, arg('seed', 'sim'));
 
   const pct = (part: number, whole: number) => whole === 0 ? '   -' : `${((part / whole) * 100).toFixed(0).padStart(3)}%`;
 
@@ -147,4 +149,8 @@ if (import.meta.main) {
         place.toFixed(1),
     );
   }
+
+  // How often the classifier would be skipped as a non-decision - the lever that actually
+  // reduces CPU while somebody is watching.
+  console.log(`\nspots the model would be skipped on: ${((brainStats.obviousRate as number) * 100).toFixed(0)}%`);
 }

@@ -4,6 +4,40 @@ import { buildOptions, type Option, type OptionKey } from './options.ts';
 import type { BotView } from './view.ts';
 
 /**
+ * Is this a decision at all?
+ *
+ * Asking the classifier costs about four seconds of three cores, so it is worth not asking when
+ * no personality would answer differently. The two cases here are genuinely not decisions: a
+ * hand with essentially no chance facing a real price, and a free look with a hand that is
+ * almost certain to be best. Everything with any judgement in it - marginal calls, bluffs,
+ * slow-plays, thin value - still goes to the model, because that is where the character comes
+ * from.
+ *
+ * Deliberately conservative. The temptation is to skip "check with nothing", which is most of
+ * the remaining calls, but checking with nothing is exactly where The Maniac bluffs and The
+ * Rock does not, and taking it away would flatten the table.
+ */
+export function isObvious(view: BotView): boolean {
+  const share = view.equity.share;
+  const price = potOdds(view.table.toCall, view.table.pot);
+  const { bluffiness } = view.self.personality;
+
+  if (view.table.toCall > 0) {
+    // Facing a bet with a hand that cannot justify half the price. Nobody calls this.
+    return share < price * 0.5;
+  }
+
+  // A free card with a hand that is almost certainly already best, and something to bet with.
+  if (share > 0.93 && view.legal.aggress !== null) return true;
+
+  // Checking behind with a weak hand, for a character who does not bluff. For The Maniac or
+  // The Showman this is exactly where the interesting decision is, so they are excluded by
+  // the bluffiness test rather than by the hand.
+  const strength = share * Math.max(2, view.table.live);
+  return strength < 0.75 && bluffiness < 0.2;
+}
+
+/**
  * Poker without a model.
  *
  * This is both the fallback when Jeff is unreachable and a first-class way to run the whole

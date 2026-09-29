@@ -11,7 +11,7 @@ import { temperatureFor } from './mood.ts';
 import { OpponentNotes } from './notes.ts';
 import { buildOptions, type Option, type OptionKey } from './options.ts';
 import { buildInstructions, buildMonologuePrompt, buildState, MONOLOGUE_EXAMPLES } from './prompt.ts';
-import { ruleDecision } from './rules.ts';
+import { isObvious, ruleDecision } from './rules.ts';
 import { sample } from './sampling.ts';
 import { templateThought } from './templates.ts';
 import { buildBotView, type BotView } from './view.ts';
@@ -49,6 +49,9 @@ export class BotBrain implements Brain {
   #ruleFallbacks = 0;
   #illegalChoices = 0;
   #lowConfidence = 0;
+  #skippedObvious = 0;
+  #obviousSpots = 0;
+  #decisions = 0;
 
   constructor(config: Config, queue = new InferenceQueue()) {
     this.#config = config;
@@ -73,6 +76,8 @@ export class BotBrain implements Brain {
       handLog: this.#log.path ?? 'disabled',
       ruleFallbacks: this.#ruleFallbacks,
       lowConfidence: this.#lowConfidence,
+      skippedObvious: this.#skippedObvious,
+      obviousRate: this.#decisions === 0 ? 0 : Number((this.#obviousSpots / this.#decisions).toFixed(3)),
       illegalChoices: this.#illegalChoices,
     };
   }
@@ -139,7 +144,20 @@ export class BotBrain implements Brain {
   ): Promise<Chosen> {
     const byRules = (): Chosen => ({ ...ruleDecision(view, rng), source: 'rules', probabilities: null, confidence: null });
 
+    // Counted before the enabled check, so a headless run with no models still reports how
+    // often the model would have been skipped.
+    this.#decisions++;
+    const obvious = isObvious(view);
+    if (obvious) this.#obviousSpots++;
+
     if (!this.#decision || !this.#decision.available() || options.length < 2) return byRules();
+
+    // Spots where no personality would answer differently are not worth four seconds of three
+    // cores. See isObvious - it is deliberately narrow.
+    if (this.#config.decision.skipObvious && obvious) {
+      this.#skippedObvious++;
+      return byRules();
+    }
 
     try {
       const criteria: Record<string, string> = {};

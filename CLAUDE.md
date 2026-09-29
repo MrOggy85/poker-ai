@@ -69,6 +69,30 @@ on this machine.
   actions happen to be legal - which is exactly the inconsistency Jeff's README warns costs you
   game results.
 
+## CPU
+
+A tournament in progress costs about **2 of this machine's 4 cores**, sustained - the decision
+model is busy ~70% of wall-clock time, because a decision takes longer than the beat meant to
+hide it. Everything else on the box put together is under 0.1 cores, so this app is by far the
+largest consumer when it runs.
+
+Three things keep that from mattering, in order of how much they save:
+
+- **The game only runs while a browser is connected.** The loop holds on the pause gate before
+  every hand and every decision. Measured: 0.00 cores idle, ~2.0 with a viewer.
+- **A hidden tab releases the stream** after 30 seconds, so a forgotten background tab costs
+  nothing. Without this the first point is nearly worthless - an EventSource stays open when
+  you switch tabs.
+- **`decision.skipObvious`** lets the rule bot handle spots that are not really decisions.
+  Measured at **11% of decisions**, not the ~40% it is tempting to assume: most decisions are
+  free checks, and skipping those would take away exactly where The Maniac bluffs and The Rock
+  does not. `make simulate` prints the current rate.
+
+The speed setting barely helps - `slow` measured 1.85 cores against `normal`'s 2.03. The 4.5 s
+decision dominates and no beat shrinks it.
+
+Jeff is also the largest single process on the machine by memory, at **4.05 GiB RSS**.
+
 ## Tuning the bots
 
 Three things that cost real time to find, and will be re-found by anyone who changes the

@@ -37,6 +37,8 @@ export interface Config {
      * and the rule bot decides. 0 would be a uniform distribution.
      */
     minConfidence: number;
+    /** Let the rule bot handle spots that are not really decisions. Saves model calls. */
+    skipObvious: boolean;
   };
   monologue: { enabled: boolean; url: string; timeoutMs: number; maxTokens: number; routineChance: number };
   log: { dir: string };
