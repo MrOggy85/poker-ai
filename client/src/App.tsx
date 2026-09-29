@@ -1,32 +1,19 @@
-import { useEffect, useState } from 'react';
+import { ControlBar } from './components/ControlBar.tsx';
+import { SidePanel } from './components/SidePanel.tsx';
+import { Table } from './components/Table.tsx';
+import { useStream } from './useStream.ts';
+import ui from './ui.module.css';
 
-interface Health {
-  status: string;
-  decision: string;
-  monologue: string;
-}
-
-/**
- * Milestone 1 placeholder. The real spectator table replaces this once the event stream
- * exists; until then this page exists to prove the bundle, the server and the two model
- * services can all see each other.
- */
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then(setHealth)
-      .catch(() => setHealth(null));
-  }, []);
+  const [view, send] = useStream();
 
   return (
-    <main style={{ display: 'grid', placeItems: 'center', height: '100%', gap: 16 }}>
-      <h1 style={{ margin: 0, color: 'var(--gold)', fontWeight: 600 }}>Poker AI</h1>
-      <p style={{ margin: 0, color: 'var(--text-dim)' }}>
-        {health ? `server ${health.status} · jeff ${health.decision} · monologue ${health.monologue}` : 'connecting…'}
-      </p>
-    </main>
+    <div className={ui.app}>
+      <div className={ui.stage}>
+        <Table view={view} />
+        <ControlBar view={view} send={send} />
+      </div>
+      <SidePanel view={view} />
+    </div>
   );
 }

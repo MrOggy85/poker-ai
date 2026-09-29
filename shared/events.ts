@@ -61,14 +61,6 @@ export interface LogLine {
   text: string;
 }
 
-export interface Standing {
-  id: string;
-  name: string;
-  avatar: string;
-  stack: number;
-  place: number | null;
-}
-
 export interface Snapshot {
   /** Bumped by a new tournament. The client throws away anything from a previous epoch. */
   epoch: number;
@@ -82,7 +74,6 @@ export interface Snapshot {
   pots: PotView[];
   potTotal: number;
   seats: SeatView[];
-  standings: Standing[];
   log: LogLine[];
   speed: Speed;
   paused: boolean;
@@ -116,7 +107,7 @@ export type ServerEvent =
   | { type: 'hand_finished'; handNo: number; awards: Award[] }
   | { type: 'player_eliminated'; seat: number; place: number }
   | { type: 'blinds_increased'; level: number; smallBlind: number; bigBlind: number }
-  | { type: 'tournament_finished'; standings: Standing[] }
+  | { type: 'tournament_finished' }
   | { type: 'speed_changed'; speed: Speed }
   | { type: 'paused' }
   | { type: 'resumed' };
@@ -141,3 +132,30 @@ export const MOOD_EMOJI: Record<Mood, string> = {
 };
 
 export const SPEEDS: Speed[] = ['slow', 'normal', 'fast', 'turbo'];
+
+/**
+ * Every event name, because the SSE frames are named and EventSource only delivers named
+ * events to a matching listener. Exhaustive by construction: the ServerEventType annotation
+ * makes a missing entry a type error the moment a new event is added to the union.
+ */
+export const SERVER_EVENT_TYPES: ServerEventType[] = [
+  'snapshot',
+  'reset',
+  'hand_started',
+  'cards_dealt',
+  'board_dealt',
+  'player_thinking',
+  'player_thought',
+  'player_action',
+  'mood_changed',
+  'pot_updated',
+  'equity_updated',
+  'showdown',
+  'hand_finished',
+  'player_eliminated',
+  'blinds_increased',
+  'tournament_finished',
+  'speed_changed',
+  'paused',
+  'resumed',
+];

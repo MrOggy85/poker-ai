@@ -1,0 +1,368 @@
+.app {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: 100%;
+  min-height: 0;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  padding: 24px;
+  gap: 12px;
+}
+
+/* --- the table -------------------------------------------------------------------------- */
+
+.tableWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.felt {
+  position: relative;
+  width: min(100%, 980px);
+  aspect-ratio: 16 / 9;
+  border-radius: 46% / 52%;
+  background:
+    radial-gradient(ellipse at 50% 40%, #12472f 0%, var(--felt) 55%, var(--felt-edge) 100%);
+  border: 14px solid var(--rail);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 0 60px rgba(0, 0, 0, 0.45);
+}
+
+.centre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.board {
+  display: flex;
+  gap: 8px;
+  min-height: 74px;
+}
+
+.pot {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+}
+
+.sidePot {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* --- seats ------------------------------------------------------------------------------ */
+
+.seat {
+  position: absolute;
+  width: 168px;
+  margin-left: -84px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  transition: opacity 240ms ease;
+}
+
+.seatFolded {
+  opacity: 0.38;
+}
+
+.seatOut {
+  opacity: 0.18;
+  filter: grayscale(1);
+}
+
+.plate {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: rgba(8, 20, 15, 0.82);
+  border: 1px solid var(--line);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.plateActive {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(217, 180, 91, 0.35);
+}
+
+.plateWinner {
+  border-color: #6ad48f;
+  box-shadow: 0 0 0 1px #6ad48f, 0 0 26px rgba(106, 212, 143, 0.45);
+}
+
+.avatar {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.who {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stack {
+  font-size: 12px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.holeCards {
+  display: flex;
+  gap: 4px;
+}
+
+.badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.mood {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.blindTag,
+.buttonTag {
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.buttonTag {
+  background: var(--card-face);
+  color: #111;
+}
+
+.blindTag {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.bet {
+  font-size: 11px;
+  color: var(--text);
+  background: var(--chip-red);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A thought is private to the bot: the audience is eavesdropping, so it reads differently
+   from anything the table could know. */
+.thought {
+  position: relative;
+  max-width: 200px;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.35;
+  color: #dfe7f5;
+  background: rgba(31, 46, 74, 0.94);
+  border: 1px solid #38507e;
+  border-radius: 12px;
+  padding: 6px 9px;
+  text-align: center;
+  animation: rise 260ms ease both;
+}
+
+.thinking {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.18em;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.equityBar {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.equityFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b6fc0, #6ad48f);
+  transition: width 420ms ease;
+}
+
+/* --- cards ------------------------------------------------------------------------------ */
+
+.card {
+  width: 46px;
+  height: 66px;
+  border-radius: 6px;
+  background: var(--card-face);
+  color: var(--card-black);
+  display: grid;
+  place-content: center;
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+  animation: deal 280ms ease both;
+}
+
+.cardSmall {
+  width: 32px;
+  height: 46px;
+  font-size: 14px;
+  border-radius: 5px;
+}
+
+.cardRed {
+  color: var(--card-red);
+}
+
+.pip {
+  font-size: 0.72em;
+  display: block;
+  text-align: center;
+}
+
+/* --- side panel ------------------------------------------------------------------------- */
+
+.panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 14px;
+  padding: 18px 16px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  min-height: 0;
+}
+
+.panelTitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  margin: 0 0 6px;
+}
+
+.meta {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.standing {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.standingOut {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.logBox {
+  overflow-y: auto;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-height: 0;
+}
+
+.logHand {
+  color: var(--gold);
+}
+
+/* --- controls --------------------------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.buttonOn {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #17140a;
+  font-weight: 600;
+}
+
+.disconnected {
+  color: var(--chip-red);
+  font-size: 12px;
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

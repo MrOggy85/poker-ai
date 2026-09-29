@@ -1,5 +1,5 @@
 import type { Card } from '../../shared/cards.ts';
-import type { LogLine, Mood, PotView, ServerEvent, Snapshot, Speed, Standing } from '../../shared/events.ts';
+import type { LogLine, Mood, PotView, ServerEvent, Snapshot, Speed } from '../../shared/events.ts';
 import { makeRng } from '../../shared/rng.ts';
 import type { Config } from '../config.ts';
 import logger from '../logger.ts';
@@ -128,18 +128,6 @@ export class Director {
     return [{ amount: total, eligible: layers[0].eligible }];
   }
 
-  #standings(): Standing[] {
-    return [...this.#players]
-      .sort((a, b) => (b.place === null ? 1 : 0) - (a.place === null ? 1 : 0) || b.stack - a.stack)
-      .map((player) => ({
-        id: player.personality.id,
-        name: player.personality.name,
-        avatar: player.personality.avatar,
-        stack: player.stack,
-        place: player.place,
-      }));
-  }
-
   snapshot(): Snapshot {
     const hand = this.#hand;
     const [smallBlind, bigBlind] = this.#blinds();
@@ -189,7 +177,6 @@ export class Director {
           place: player.place,
         };
       }),
-      standings: this.#standings(),
       log: this.#log.slice(-40),
       speed: this.#pacer.speed,
       paused: this.#pacer.paused,
@@ -263,7 +250,7 @@ export class Director {
     if (survivor) survivor.place = 1;
     this.#finished = true;
     this.#note('tournament over');
-    this.#emit({ type: 'tournament_finished', standings: this.#standings() });
+    this.#emit({ type: 'tournament_finished' });
     logger.info('tournament finished', { seed: this.#seed, hands: this.#handNo });
   }
 
