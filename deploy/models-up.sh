@@ -16,12 +16,16 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 DOCKER="docker -c default"
+NETWORK=poker-net
 WEIGHTS="$PWD/models/weights"
 JEFF_PORT=8781
 LLAMA_PORT=8782
 GGUF=qwen2.5-0.5b-instruct-q4_k_m.gguf
 
 mkdir -p "$WEIGHTS"
+
+# The app container reaches these by name: 127.0.0.1 inside a container is the container.
+$DOCKER network create $NETWORK >/dev/null 2>&1 || true
 
 # --- monologue: llama.cpp -----------------------------------------------------------------
 # No cmake on this host, so the prebuilt CPU image is the only sane route.
@@ -37,6 +41,7 @@ $DOCKER rm -f poker-llama >/dev/null 2>&1 || true
 $DOCKER run -d \
   --name poker-llama \
   --restart unless-stopped \
+  --network $NETWORK \
   --cpus=2 \
   -p 127.0.0.1:$LLAMA_PORT:8080 \
   -v "$WEIGHTS:/weights:ro" \
@@ -68,6 +73,7 @@ $DOCKER rm -f poker-jeff >/dev/null 2>&1 || true
 $DOCKER run -d \
   --name poker-jeff \
   --restart unless-stopped \
+  --network $NETWORK \
   --cpus=3 \
   -e OMP_NUM_THREADS=3 \
   -e MKL_NUM_THREADS=3 \
