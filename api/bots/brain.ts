@@ -15,7 +15,17 @@ import { ruleDecision } from './rules.ts';
 import { sample } from './sampling.ts';
 import { templateThought } from './templates.ts';
 import { buildBotView, type BotView } from './view.ts';
+import { HandLog } from '../log/handlog.ts';
 import { equityWords } from './words.ts';
+
+interface Chosen {
+  key: OptionKey;
+  option: Option;
+  source: 'jeff' | 'rules';
+  /** Kept for the hand log even when the rule bot overrode the answer. */
+  probabilities: Record<string, number> | null;
+  confidence: number | null;
+}
 
 /**
  * One decision, end to end: filtered view, equity, choose, narrate.
@@ -35,6 +45,7 @@ export class BotBrain implements Brain {
   #decision: DecisionClient | null;
   #monologue: MonologueClient | null;
   #queue: InferenceQueue;
+  #log: HandLog;
   #ruleFallbacks = 0;
   #illegalChoices = 0;
   #lowConfidence = 0;
@@ -44,6 +55,11 @@ export class BotBrain implements Brain {
     this.#queue = queue;
     this.#decision = config.decision.enabled ? new JeffClient(config, queue) : null;
     this.#monologue = config.monologue.enabled ? new LlamaClient(config, queue) : null;
+    this.#log = new HandLog(config.log.dir, config.seed);
+  }
+
+  get logPath(): string | null {
+    return this.#log.path;
   }
 
   get queue(): InferenceQueue {
@@ -54,6 +70,7 @@ export class BotBrain implements Brain {
     return {
       queue: this.#queue.stats(),
       decision: this.#decision?.stats() ?? 'disabled',
+      handLog: this.#log.path ?? 'disabled',
       ruleFallbacks: this.#ruleFallbacks,
       lowConfidence: this.#lowConfidence,
       illegalChoices: this.#illegalChoices,
@@ -92,8 +109,25 @@ export class BotBrain implements Brain {
       `choice:${request.personality.id}:h${request.handNo}:${view.table.street}:${request.state.history.length}`,
     );
 
-    const { key, option, source } = await this.#choose(view, options, rng);
+    const startedAt = performance.now();
+    const { key, option, source, probabilities, confidence } = await this.#choose(view, options, rng);
     const thought = await this.#narrate(view, key, option, source, request);
+
+    this.#log.record({
+      seat: request.seat,
+      name: request.personality.name,
+      street: view.table.street,
+      mood: request.mood,
+      state: buildState(view),
+      options: Object.fromEntries(options.map((entry) => [entry.key, entry.text])),
+      probabilities,
+      confidence,
+      chosen: key,
+      source,
+      thought: thought?.text ?? null,
+      thoughtSource: thought?.source ?? null,
+      ms: Math.round(performance.now() - startedAt),
+    });
 
     return { action: option.action, thought };
   }
@@ -102,10 +136,10 @@ export class BotBrain implements Brain {
     view: BotView,
     options: Option[],
     rng: ReturnType<typeof makeRng>,
-  ): Promise<{ key: OptionKey; option: Option; source: 'jeff' | 'rules' }> {
-    if (!this.#decision || !this.#decision.available() || options.length < 2) {
-      return { ...ruleDecision(view, rng), source: 'rules' };
-    }
+  ): Promise<Chosen> {
+    const byRules = (): Chosen => ({ ...ruleDecision(view, rng), source: 'rules', probabilities: null, confidence: null });
+
+    if (!this.#decision || !this.#decision.available() || options.length < 2) return byRules();
 
     try {
       const criteria: Record<string, string> = {};
@@ -125,7 +159,7 @@ export class BotBrain implements Brain {
       // logic decides instead.
       if (answer.confidence < this.#config.decision.minConfidence) {
         this.#lowConfidence++;
-        return { ...ruleDecision(view, rng), source: 'rules' };
+        return { ...byRules(), probabilities: answer.probabilities, confidence: answer.confidence };
       }
 
       const temperature = temperatureFor(view.self.personality, view.self.mood);
@@ -137,16 +171,22 @@ export class BotBrain implements Brain {
         // action is a crash, so it gets a branch rather than a non-null assertion.
         this.#illegalChoices++;
         logger.warn('jeff chose an option that was not offered', { chosen, offered: options.map((e) => e.key) });
-        return { ...ruleDecision(view, rng), source: 'rules' };
+        return byRules();
       }
 
-      return { key: option.key, option, source: 'jeff' };
+      return {
+        key: option.key,
+        option,
+        source: 'jeff',
+        probabilities: answer.probabilities,
+        confidence: answer.confidence,
+      };
     } catch (error) {
       this.#ruleFallbacks++;
       logger.warn('decision fell back to rules', {
         reason: error instanceof Error ? error.message : String(error),
       });
-      return { ...ruleDecision(view, rng), source: 'rules' };
+      return byRules();
     }
   }
 
@@ -184,7 +224,8 @@ export class BotBrain implements Brain {
   }
 
   /** Public information only: what everyone at the table saw. */
-  onHandFinished(state: HandState): void {
+  onHandFinished(state: HandState, nameOf: (handSeat: number) => string): void {
+    this.#log.finishHand(state, this.#config.seed, nameOf);
     this.#notes.observeHand(state.history, state.seats.map((seat) => seat.id));
 
     const shown = state.seats.filter((seat) => !seat.folded);

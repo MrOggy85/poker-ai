@@ -35,6 +35,7 @@ RUN deno cache --config deno.json main.ts && chown -R 1000:1000 /deno-dir
 # only on the host's loopback, so the sole way in is `tailscale serve` on the host.
 ENV HOST=0.0.0.0 \
     PORT=8780 \
+    LOG_DIR=/app/data/logs \
     TZ=Asia/Tokyo
 
 USER 1000

@@ -61,6 +61,8 @@ for (let run = 0; run < tournaments; run++) {
   config.pacing.speed = 'turbo';
   config.monologue.enabled = false;
   config.decision.enabled = false;
+  // Headless runs would otherwise litter the log directory with a file per tournament.
+  config.log.dir = '';
 
   const brain = new BotBrain(config);
   const voluntaryThisHand = new Set<string>();
@@ -86,8 +88,8 @@ for (let run = 0; run < tournaments; run++) {
       if (kind !== 'fold' && kind !== 'check') voluntaryThisHand.add(request.personality.id);
       return decision;
     },
-    onHandFinished(state) {
-      brain.onHandFinished(state);
+    onHandFinished(state, nameOf) {
+      brain.onHandFinished(state, nameOf);
       for (const id of dealtThisHand) {
         const entry = tallies.get(id)!;
         entry.handsDealt++;

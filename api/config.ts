@@ -54,5 +54,10 @@ export function loadConfig(path = Deno.env.get('CONFIG_PATH') || DEFAULT_PATH): 
   const seed = Deno.env.get('SEED');
   if (seed) config.seed = seed;
 
+  // In the container the only writable path is the mounted volume, and the config default is
+  // relative to the working directory. Without this the hand log silently disables itself.
+  const logDir = Deno.env.get('LOG_DIR');
+  if (logDir) config.log.dir = logDir;
+
   return config;
 }

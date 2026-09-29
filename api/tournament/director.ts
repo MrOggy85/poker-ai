@@ -45,7 +45,9 @@ export interface Decision {
 export interface Brain {
   decide(request: DecisionRequest): Promise<Decision>;
   /** Public information only - called once per hand so opponent notes can be updated. */
-  onHandFinished?(state: HandState): void;
+  onHandFinished?(state: HandState, nameOf: (handSeat: number) => string): void;
+  /** Queue depth, latencies and fallback counters, for /api/debug. */
+  stats?(): Record<string, unknown>;
 }
 
 interface Player {
@@ -93,6 +95,26 @@ export class Director {
 
   get pacer(): Pacer {
     return this.#pacer;
+  }
+
+  /**
+   * PROJECT.md section 16 asks for measured resource use. On a machine where a decision costs
+   * about four seconds, "is Jeff actually answering, or has everything quietly fallen back to
+   * the rule bot?" is the question you want answerable without reading logs.
+   */
+  debug(): Record<string, unknown> {
+    return {
+      seed: this.#seed,
+      epoch: this.#epoch,
+      handNo: this.#handNo,
+      speed: this.#pacer.speed,
+      paused: this.#pacer.paused,
+      bots: this.#brain.stats?.() ?? 'not reported',
+      memory: {
+        rssMb: Math.round(Deno.memoryUsage().rss / 1024 / 1024),
+        heapMb: Math.round(Deno.memoryUsage().heapUsed / 1024 / 1024),
+      },
+    };
   }
 
   #seatPlayers(): void {
@@ -377,7 +399,7 @@ export class Director {
     }
 
     this.#syncStacks(state, toTableSeat);
-    this.#brain.onHandFinished?.(state);
+    this.#brain.onHandFinished?.(state, (index) => this.#players[toTableSeat(index)].personality.name);
     this.#updateMoods(state, toTableSeat, stacksBefore);
     this.#eliminate();
     this.#equities.clear();

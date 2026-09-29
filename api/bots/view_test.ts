@@ -89,7 +89,7 @@ Deno.test('nothing a bot is told during a whole tournament mentions another hand
       if (decision.thought) thoughts.push(decision.thought.text);
       return decision;
     },
-    onHandFinished: (state) => brain.onHandFinished(state),
+    onHandFinished: (state, nameOf) => brain.onHandFinished(state, nameOf),
   };
 
   const director = new Director(config, new Hub(), recording);

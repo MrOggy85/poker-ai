@@ -116,8 +116,10 @@ export class JeffClient implements DecisionClient {
       const error = new JeffError(response.status, text);
 
       // 529 means Jeff is already serving someone. The inference queue makes us its only
-      // caller, so in normal running this never fires - and when it does, something else on
-      // the machine is talking to it. Counted, not swallowed.
+      // caller, so this should never fire in steady state - and when it does, something else
+      // is talking to Jeff. In practice that is a redeploy: the outgoing container's last
+      // request is still being served when the incoming one starts. Counted rather than
+      // swallowed, because a *sustained* count means a stray process worth hunting down.
       if (response.status === 529) this.#busyResponses++;
 
       if (!error.retryable || attempt >= this.#config.decision.busyRetries || Date.now() >= deadline) throw error;

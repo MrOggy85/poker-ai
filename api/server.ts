@@ -55,6 +55,8 @@ export function init(config: Config, hub: Hub, director: Director) {
       return await handleControl(req, director);
     }
 
+    if (url.pathname === '/api/debug') return json(director.debug());
+
     if (url.pathname === '/api/health') {
       const [decision, monologue] = await Promise.all([
         config.decision.enabled ? probe(config.decision.url, '/health') : Promise.resolve('off' as const),
