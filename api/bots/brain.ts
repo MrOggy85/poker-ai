@@ -3,6 +3,7 @@ import type { Config } from '../config.ts';
 import { estimateEquity } from '../engine/equity.ts';
 import type { HandState } from '../engine/types.ts';
 import { JeffClient, type DecisionClient } from '../inference/decision.ts';
+import { LogprobClient } from '../inference/logprob.ts';
 import { LlamaClient, type MonologueClient } from '../inference/monologue.ts';
 import { InferenceQueue } from '../inference/queue.ts';
 import logger from '../logger.ts';
@@ -56,7 +57,7 @@ export class BotBrain implements Brain {
   constructor(config: Config, queue = new InferenceQueue()) {
     this.#config = config;
     this.#queue = queue;
-    this.#decision = config.decision.enabled ? new JeffClient(config, queue) : null;
+    this.#decision = config.decision.enabled ? makeDecisionClient(config, queue) : null;
     this.#monologue = config.monologue.enabled ? new LlamaClient(config, queue) : null;
     this.#log = new HandLog(config.log.dir, config.seed);
   }
@@ -274,9 +275,20 @@ function describeChoice(option: Option): string {
   }
 }
 
+function makeDecisionClient(config: Config, queue: InferenceQueue): DecisionClient | null {
+  switch (config.decision.provider) {
+    case 'jeff':
+      return new JeffClient(config, queue);
+    case 'logprob':
+      return new LogprobClient(config, queue);
+    case 'rules':
+      return null;
+  }
+}
+
 export function makeBrain(config: Config): BotBrain {
   logger.info('bots ready', {
-    decisions: config.decision.enabled ? config.decision.url : 'rules only',
+    decisions: config.decision.enabled ? `${config.decision.provider} @ ${config.decision.url}` : 'rules only',
     monologues: config.monologue.enabled ? config.monologue.url : 'templates only',
   });
   return new BotBrain(config);

@@ -16,6 +16,9 @@ import { buildInstructions, buildState } from '../api/bots/prompt.ts';
 import { ruleDecision } from '../api/bots/rules.ts';
 import { estimateEquity } from '../api/engine/equity.ts';
 import { loadConfig } from '../api/config.ts';
+import { InferenceQueue } from '../api/inference/queue.ts';
+import { JeffClient } from '../api/inference/decision.ts';
+import { LogprobClient } from '../api/inference/logprob.ts';
 import type { BotView } from '../api/bots/view.ts';
 
 function viewFor(situation: Situation): BotView {
@@ -78,6 +81,19 @@ function viewFor(situation: Situation): BotView {
 
 const source = Deno.args.includes('--source') ? Deno.args[Deno.args.indexOf('--source') + 1] : 'rules';
 const config = loadConfig();
+if (source === 'logprob') {
+  config.decision.provider = 'logprob';
+  config.decision.url = config.monologue.url;
+}
+
+const queue = new InferenceQueue();
+const client = source === 'jeff'
+  ? new JeffClient(config, queue)
+  : source === 'logprob'
+  ? new LogprobClient(config, queue)
+  : null;
+
+const timings: number[] = [];
 
 let agreed = 0;
 const failures: string[] = [];
@@ -92,25 +108,23 @@ for (const situation of SITUATIONS) {
   let chosen: string;
   let detail = '';
 
-  if (source === 'jeff') {
+  if (client) {
     const criteria: Record<string, string> = {};
     for (const option of options) criteria[option.key] = option.text;
-    const response = await fetch(`${config.decision.url}/v1/systemone`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: config.decision.model,
+    const startedAt = performance.now();
+    try {
+      const answer = await client.ask({
         state: buildState(view),
-        questions: { action: { type: 'choice', instructions: buildInstructions(view), criteria } },
-      }),
-    });
-    if (!response.ok) {
-      console.error(`${situation.id}: jeff ${response.status}`);
+        instructions: buildInstructions(view),
+        criteria,
+      });
+      timings.push(performance.now() - startedAt);
+      chosen = answer.choice;
+      detail = `conf ${answer.confidence.toFixed(2)}`;
+    } catch (error) {
+      console.error(`${situation.id}: ${error instanceof Error ? error.message : error}`);
       continue;
     }
-    const answer = (await response.json()).answers.action;
-    chosen = answer.choice;
-    detail = `conf ${answer.confidence.toFixed(2)}`;
   } else {
     chosen = ruleDecision(view, makeRng('sanity', `rule:${situation.id}`)).key;
   }
@@ -125,5 +139,11 @@ for (const situation of SITUATIONS) {
   );
 }
 
-console.log(`\n${agreed}/${SITUATIONS.length} sensible (${source})`);
+const median = timings.length === 0
+  ? 0
+  : [...timings].sort((a, b) => a - b)[Math.floor(timings.length / 2)];
+console.log(
+  `\n${agreed}/${SITUATIONS.length} sensible (${source})` +
+    (median ? ` - median ${median.toFixed(0)} ms per decision` : ''),
+);
 for (const failure of failures) console.log(`  ${failure}`);

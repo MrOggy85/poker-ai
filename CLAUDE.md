@@ -93,6 +93,39 @@ decision dominates and no beat shrinks it.
 
 Jeff is also the largest single process on the machine by memory, at **4.05 GiB RSS**.
 
+## Decision providers
+
+`decision.provider` picks where decisions come from. All three satisfy the same
+`DecisionClient` interface, so game logic never learns which answered.
+
+| provider | sanity set | median latency | memory |
+|---|---|---|---|
+| `rules` | **12/12** | ~0 ms | none |
+| `jeff` | 9/12 | 4.1 s | 4.05 GiB |
+| `logprob` (Qwen2.5-0.5B) | 5-7/12 | 2.0-2.4 s | shares the 0.5 GiB monologue model |
+
+`logprob` is the "read the answer letters' probabilities from any LLM" approach - the same
+shape as Jeff, one forward pass, a probability per option, but with no purpose-trained model
+behind it. It reuses the already-loaded monologue model, so it costs no extra memory at all.
+
+**It is not good enough, and the reason is instructive.** Asked what to do holding the best
+possible hand against a bet, Qwen2.5-0.5B folded with p=0.52 when fold was listed first and
+called with p=0.63 when fold was listed last - the answer flipped with the order of the list.
+On a content-free state one letter came back at 0.78 regardless of what the options meant. The
+raw distribution is mostly label prior.
+
+`decision.calibrate` divides that prior out (contextual calibration: ask the same question with
+a null state, cache the answer per option set, divide). It demonstrably works - after it, the
+same spot answers "raise" in both orderings. But the remaining signal is still poor: 5/12
+against 7/12 uncalibrated, which on twelve cases is inside the noise either way. The
+uncalibrated 7 was partly luck, since the prior favours passive answers and five of the twelve
+cases expect one.
+
+This matches Jeff's own published numbers: Qwen3.5-0.8B untrained scores 45.3 on their
+benchmarks against 79.1 for the same model fine-tuned. **The fine-tune is the product**, not
+the technique - the technique is ordinary zero-shot classification and has been since about
+2019. Worth knowing before anyone tries to save 4 GB by swapping in a smaller model.
+
 ## Tuning the bots
 
 Three things that cost real time to find, and will be re-found by anyone who changes the

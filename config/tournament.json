@@ -34,12 +34,14 @@
   },
   "decision": {
     "enabled": true,
+    "provider": "jeff",
     "url": "http://127.0.0.1:8781",
     "model": "jeff-latest",
     "timeoutMs": 15000,
     "busyRetries": 3,
     "minConfidence": 0.15,
-    "skipObvious": true
+    "skipObvious": true,
+    "calibrate": true
   },
   "monologue": {
     "enabled": true,
