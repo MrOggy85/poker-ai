@@ -1,0 +1,49 @@
+{
+  "seed": "friday-night",
+  "table": {
+    "players": 6,
+    "startingChips": 10000,
+    "handsPerLevel": 10,
+    "blindSchedule": [
+      [50, 100],
+      [75, 150],
+      [100, 200],
+      [150, 300],
+      [200, 400],
+      [300, 600],
+      [500, 1000],
+      [800, 1600],
+      [1200, 2400],
+      [2000, 4000]
+    ]
+  },
+  "equity": {
+    "samples": 300
+  },
+  "pacing": {
+    "speed": "normal",
+    "minActionMs": { "slow": 3500, "normal": 1500, "fast": 600, "turbo": 0 },
+    "handEndPauseMs": { "slow": 5000, "normal": 2500, "fast": 1000, "turbo": 0 }
+  },
+  "mood": {
+    "driftChancePerHand": 0.08,
+    "decayHands": 3
+  },
+  "decision": {
+    "enabled": true,
+    "url": "http://127.0.0.1:8781",
+    "model": "jeff-latest",
+    "timeoutMs": 15000,
+    "busyRetries": 3
+  },
+  "monologue": {
+    "enabled": true,
+    "url": "http://127.0.0.1:8782",
+    "timeoutMs": 20000,
+    "maxTokens": 40,
+    "routineChance": 0.25
+  },
+  "log": {
+    "dir": "./data/logs"
+  }
+}

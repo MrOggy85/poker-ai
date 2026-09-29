@@ -1,0 +1,9 @@
+.git
+node_modules
+client/node_modules
+api/client
+data
+deploy/data
+models/weights
+*.md
+!PROJECT.md

@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "check": "deno check main.ts",
+    "start": "deno run --allow-net --allow-read --allow-write=./data --allow-env main.ts",
+    "dev": "DEV=1 deno run -A main.ts"
+  },
+  "fmt": {
+    "lineWidth": 120,
+    "semiColons": true,
+    "singleQuote": true
+  }
+}

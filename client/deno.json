@@ -1,0 +1,11 @@
+{
+  "nodeModulesDir": "manual",
+  "fmt": {
+    "lineWidth": 120,
+    "semiColons": true,
+    "singleQuote": true
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"]
+  }
+}

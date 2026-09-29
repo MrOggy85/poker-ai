@@ -1,0 +1,10 @@
+node_modules/
+api/client/
+data/
+.DS_Store
+.env
+.claude/settings.local.json
+
+# Deployment state: hand logs and downloaded model weights live here and are never committed.
+deploy/data/
+models/weights/

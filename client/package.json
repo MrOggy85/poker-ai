@@ -1,0 +1,20 @@
+{
+  "name": "poker-ai-client",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "deno run --allow-env --allow-read --allow-run --allow-sys --allow-write=../api/client build.ts",
+    "check": "tsc --noEmit",
+    "dev": "deno run --allow-env --allow-read --allow-run --allow-sys --allow-write=../api/client build-watch.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

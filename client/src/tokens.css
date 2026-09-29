@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+
+  --felt: #0b2c20;
+  --felt-edge: #071b14;
+  --rail: #4a2f1d;
+  --bg: #0b1f16;
+  --panel: #12241d;
+  --line: #1f3a2e;
+
+  --text: #e8efe9;
+  --text-dim: #8fa89a;
+  --gold: #d9b45b;
+  --chip-red: #c0453b;
+  --chip-blue: #3b6fc0;
+
+  --card-face: #f4f1e8;
+  --card-red: #b5322a;
+  --card-black: #1a1a1a;
+
+  --radius: 10px;
+  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+#root {
+  height: 100%;
+}
