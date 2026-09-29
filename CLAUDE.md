@@ -14,14 +14,21 @@ A Texas Hold'em tournament played entirely by AI bots and watched live in a brow
 
 ## Commands
 
-    make install      # npm deps for the client (the api has none)
-    make dev          # server on :8780 + esbuild watcher
-    make build        # production bundle into api/client/
-    make check        # deno check + tsc --noEmit
-    make test         # deno test
-    make bench        # measure real Jeff / LLM latency on this machine
-    make models-up    # start the jeff + llama.cpp containers
+    make install               # npm deps for the client (the api has none)
+    make dev                   # server on :8780 + esbuild watcher
+    make build                 # production bundle into api/client/
+    make check                 # deno check over the whole tree + tsc --noEmit
+    make test                  # deno test
+    make simulate              # headless tournaments, per-bot behaviour stats
+    make sanity                # hand-written situations vs the rule bot (pass/fail)
+    make SOURCE=jeff sanity    # the same set vs the classifier (a tuning report)
+    make bench                 # measure real Jeff / LLM latency on this machine
+    make models-up             # start the jeff + llama.cpp containers
     make deploy-build && make deploy-up
+
+`/api/debug` reports queue depth, per-model latencies, fallback counters, breaker state and
+RSS. Check it first when the bots are behaving oddly - a high `ruleFallbacks` or `lowConfidence`
+says the classifier is not actually driving.
 
 Ports: app **8780**, Jeff **8781**, llama.cpp **8782**. 8777 and 8778 are taken by other apps
 on this machine.
@@ -61,6 +68,27 @@ on this machine.
   positional `"1".."5"`. With positional keys, "3" means something different depending on which
   actions happen to be legal - which is exactly the inconsistency Jeff's README warns costs you
   game results.
+
+## Tuning the bots
+
+Three things that cost real time to find, and will be re-found by anyone who changes the
+prompt or the option menu:
+
+- **Word buckets must be relative to the table, not absolute.** Six-handed, every hand averages
+  a one-in-six share, so absolute equity thresholds called pocket aces "very weak, almost
+  certainly behind" and the model answered near-uniformly. `equityWords` takes the number of
+  live players for this reason.
+- **The option menu biases the answer as much as the wording does.** Two raise sizes against
+  one fold and one call put twice the probability mass on aggression, and the bots raised
+  hands they should have folded. One sized option per intent; the size comes from the
+  personality.
+- **Nothing in an option may echo a personality.** "Fold: keep your chips and wait for a
+  better hand" was close enough to The Rock's own description that it folded pocket aces.
+
+Wording changes have large, non-obvious effects: rephrasing one option in a way that read
+better to a human collapsed the model's confidence across every unrelated case. **Tune against
+`make SOURCE=jeff sanity` and keep the number** - never by ear. The current score is 9/12; the
+rule bot must stay at 12/12 and has a test.
 
 ## Jeff: corrections to PROJECT.md
 
@@ -119,6 +147,9 @@ pacing lookahead, then asking Jeff only about close decisions, then `decision.en
   `{"detail":"The model is busy. Retry shortly."}`. In production a 529 means something other
   than the inference queue is talking to Jeff - a stray benchmark, a second container - so
   count it and surface it rather than treating it as normal load shedding.
+
+Full write-up of the model setup, including the container traps:
+`~/claude_harness/reports/2026-09-29-jeff-classifier-on-cpu.md`.
 
 ## This machine
 
