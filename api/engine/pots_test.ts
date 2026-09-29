@@ -3,7 +3,7 @@ import { awardPots, buildPots, potTotal } from './pots.ts';
 import type { HandState, Seat } from './types.ts';
 
 function seat(hand: number, folded = false): Seat {
-  return { id: `p${hand}`, stack: 0, hole: null, folded, allIn: false, street: 0, hand, acted: true };
+  return { id: `p${hand}`, stack: 0, hole: null, folded, allIn: false, street: 0, hand, acted: true, mayRaise: false };
 }
 
 function stateWith(seats: Seat[], button = 0): HandState {

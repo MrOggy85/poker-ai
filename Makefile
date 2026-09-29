@@ -22,8 +22,10 @@ build:
 start: build
 	$(DENO) task --cwd api start
 
+# The whole tree, not just the entry point: `deno check main.ts` only reaches what main.ts
+# imports, so a broken test helper or an unreferenced module slips through it.
 check:
-	$(DENO) check --config api/deno.json api/main.ts
+	$(DENO) check --config api/deno.json api/**/*.ts shared/*.ts scripts/*.ts
 	$(NPM) --prefix client run check
 
 test:
