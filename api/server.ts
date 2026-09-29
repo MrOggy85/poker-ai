@@ -43,11 +43,13 @@ async function probe(url: string, path: string): Promise<'up' | 'down'> {
 }
 
 export function init(config: Config, hub: Hub, director: Director) {
-  return async function handler(req: Request): Promise<Response> {
+  // `info.completed` resolves when the response has been fully delivered - i.e. when an SSE
+  // client disconnects. It is the only reliable disconnect signal; see hub.subscribe.
+  return async function handler(req: Request, info?: { completed?: Promise<void> }): Promise<Response> {
     const url = new URL(req.url);
 
     if (url.pathname === '/api/stream') {
-      return hub.subscribe(req, () => director.snapshot());
+      return hub.subscribe(req, () => director.snapshot(), info?.completed);
     }
 
     if (url.pathname === '/api/control') {

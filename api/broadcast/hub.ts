@@ -16,7 +16,8 @@ const KEEPALIVE_MS = 15_000;
 
 interface Subscriber {
   send(chunk: string): void;
-  close(): void;
+  /** Remove this subscriber, once, however the client went away. */
+  drop(): void;
 }
 
 function frame(id: number, event: ServerEvent): string {
@@ -49,12 +50,11 @@ export class Hub {
     if (this.#ring.length > RING_SIZE) this.#ring.shift();
 
     const chunk = frame(id, event);
-    for (const subscriber of this.#subscribers) {
+    for (const subscriber of [...this.#subscribers]) {
       try {
         subscriber.send(chunk);
       } catch {
-        this.#subscribers.delete(subscriber);
-        this.#announce();
+        subscriber.drop();
       }
     }
   }
@@ -64,7 +64,17 @@ export class Hub {
     this.#ring = [];
   }
 
-  subscribe(request: Request, snapshot: () => Snapshot): Response {
+  /**
+   * `completed` is the promise from `Deno.serve`'s handler info, and it is the only reliable
+   * signal that a viewer has gone.
+   *
+   * Not `request.signal`: Deno aborts that when the *response* is returned, so cleanup fired
+   * immediately for every subscriber and then never again - every viewer leaked, the audience
+   * count never reached zero, and the game carried on playing to nobody at two cores. Which is
+   * exactly what the idle gate exists to prevent. The stream's own `cancel` callback is kept
+   * as well, because it is what fires when the server tears the stream down.
+   */
+  subscribe(request: Request, snapshot: () => Snapshot, completed?: Promise<void>): Response {
     const lastEventId = Number(request.headers.get('last-event-id') ?? '0') || 0;
     // Replayable only if the whole gap is still in the ring; otherwise start from a snapshot.
     const replay = lastEventId > 0 && this.#ring.length > 0 && this.#ring[0].id <= lastEventId + 1
@@ -74,6 +84,20 @@ export class Hub {
     const encoder = new TextEncoder();
     let keepalive: ReturnType<typeof setInterval> | undefined;
     let self: Subscriber | undefined;
+    let gone = false;
+
+    const drop = () => {
+      if (gone) return;
+      gone = true;
+      if (keepalive !== undefined) clearInterval(keepalive);
+      if (self) {
+        this.#subscribers.delete(self);
+        logger.info('viewer left', { viewers: this.#subscribers.size });
+        this.#announce();
+      }
+    };
+
+    void completed?.then(drop, drop);
 
     const stream = new ReadableStream<Uint8Array>({
       start: (controller) => {
@@ -86,17 +110,11 @@ export class Hub {
           send(frame(this.#seq, { type: 'snapshot', snapshot: snapshot() }));
         }
 
-        self = {
-          send,
-          close: () => {
-            try {
-              controller.close();
-            } catch {
-              // already closed by the client going away
-            }
-          },
-        };
+        self = { send, drop };
+        // The client may already have gone while the stream was being set up.
+        if (gone) return;
         this.#subscribers.add(self);
+        logger.info('viewer joined', { viewers: this.#subscribers.size, ua: request.headers.get('user-agent') });
         this.#announce();
 
         // Without traffic, an idle proxy will eventually drop the connection. A comment line
@@ -105,15 +123,11 @@ export class Hub {
           try {
             send(': keepalive\n\n');
           } catch {
-            /* the cancel handler cleans up */
+            drop();
           }
         }, KEEPALIVE_MS);
       },
-      cancel: () => {
-        if (keepalive !== undefined) clearInterval(keepalive);
-        if (self) this.#subscribers.delete(self);
-        this.#announce();
-      },
+      cancel: drop,
     });
 
     return new Response(stream, {
@@ -129,7 +143,6 @@ export class Hub {
   }
 
   closeAll(): void {
-    for (const subscriber of this.#subscribers) subscriber.close();
-    this.#subscribers.clear();
+    for (const subscriber of [...this.#subscribers]) subscriber.drop();
   }
 }
