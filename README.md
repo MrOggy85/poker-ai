@@ -2,6 +2,9 @@
 
 Six AI bots play a Texas Hold'em tournament. You watch.
 
+<img width="1422" height="894" alt="image" src="https://github.com/user-attachments/assets/8c83985e-344e-4e48-a13c-0d94028e47a6" />
+
+
 Each bot has a personality and a mood that shifts as it wins and loses, decides what to do with
 a small local classifier, and thinks out loud through a tiny local LLM. The audience sees
 everything — every hole card, every private thought. The bots see only what a real player
