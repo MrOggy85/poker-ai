@@ -10,7 +10,8 @@ A Texas Hold'em tournament played entirely by AI bots and watched live in a brow
   server's event stream and nothing else - no betting rules, no winner logic, no equity.
   Its only interaction is the control bar (pause/resume, speed, new tournament).
 - `shared/` is imported by both sides, so it must stay dependency-free and DOM-free.
-- Mirrors the layout and build conventions of `~/kotoba`. When in doubt, look there first.
+- Layout and build conventions are shared with the author's other Deno + esbuild projects:
+  `api/` serves a bundle built into `api/client/` by a Deno script, deployed as one container.
 
 ## Commands
 
@@ -206,7 +207,8 @@ pacing lookahead, then asking Jeff only about close decisions, then `decision.en
   count it and surface it rather than treating it as normal load shedding.
 
 Full write-up of the model setup, including the container traps:
-`~/claude_harness/reports/2026-09-29-jeff-classifier-on-cpu.md`.
+`reports/2026-09-29-jeff-on-cpu.md`. Why this model and not a smaller one:
+`reports/2026-09-30-decision-model-comparison.md`.
 
 ## This machine
 

@@ -44,5 +44,16 @@ normal way to run. Rule-based bots play recognisably distinct poker on their own
 monologues carry the personalities, and a full tournament finishes with both services stopped.
 Jeff makes the bots less predictable; it is not what makes them characters.
 
-See `PROJECT.md` for the specification, `CLAUDE.md` for how to work on it, and
-`~/claude_harness/reports/2026-09-29-jeff-classifier-on-cpu.md` for the model setup.
+## Findings
+
+Two write-ups in `reports/`, both of which cost real time to learn:
+
+- **[Is a purpose-trained decision classifier worth it?](reports/2026-09-30-decision-model-comparison.md)**
+  — the rule bot, Jeff and a plain LLM's answer-letter log-probabilities, measured against the
+  same twelve situations. Includes why the small model answers the label rather than the
+  question, and why a hand-written rule bot beats all of them at playing well.
+- **[Running the Jeff classifier on CPU](reports/2026-09-29-jeff-on-cpu.md)** — what it takes to
+  get it running without a GPU, measured latency against thread count, and the API details its
+  README gets wrong.
+
+See `PROJECT.md` for the specification and `CLAUDE.md` for how to work on the code.
