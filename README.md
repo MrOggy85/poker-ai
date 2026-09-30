@@ -57,3 +57,7 @@ Two write-ups in `reports/`, both of which cost real time to learn:
   README gets wrong.
 
 See `PROJECT.md` for the specification and `CLAUDE.md` for how to work on the code.
+
+## Licence
+
+Apache 2.0, see [LICENSE](LICENSE). The decision model it talks to, [firelex/jeff](https://github.com/firelex/jeff), is MIT-licensed code with Apache 2.0 weights; neither is bundled here.
