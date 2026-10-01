@@ -99,7 +99,20 @@ export function ruleDecision(view: BotView, rng: Rng): { key: OptionKey; option:
 
   if (strength >= continueAt) return first('C', 'X');
 
-  // A cheap look with something live is worth it to almost anyone.
+  // Pot odds, which relative strength cannot express.
+  //
+  // A draw is a weak hand right now and a profitable call anyway. Judging only by strength
+  // relative to an average hand folded an open-ended straight draw getting seven to one, which
+  // is simply wrong and no personality would do it. Equity beating the price with a margin is
+  // a call for anyone.
+  //
+  // The price gate is deliberately tight. At `price < 0.3` this fired on most cheap bets and
+  // every bot turned loose - The Rock's share of hands played went from 21% to 43%, which is
+  // not a rock. Restricting it to genuinely cheap prices keeps the maths without eating the
+  // personalities.
+  if (share > price * 1.2 && price < 0.15) return first('C', 'X');
+
+  // A cheap look with something live, for the players loose enough to take it.
   if (price < 0.2 && strength > 0.7 && rng.chance(looseness)) return first('C', 'X');
 
   return first('F', 'X');

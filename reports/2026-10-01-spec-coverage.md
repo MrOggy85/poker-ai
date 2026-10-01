@@ -42,10 +42,10 @@ carries everything needed for it.
 
 ## Known gaps
 
-**§16 asks for 30–50 hand-written decision situations; `fixtures/sanity.ts` has 12.** Enough to
-catch a model folding pocket aces, and it did. Not enough to distinguish 7/12 from 5/12, which
-mattered when comparing decision providers — see the caveat in
-`2026-09-30-decision-model-comparison.md`. Being grown.
+**§16 asked for 30–50 hand-written decision situations.** `fixtures/sanity.ts` now has 32,
+across all four streets and all six personalities. It earned its keep immediately: the twenty
+new cases found the rule bot folding an open-ended straight draw getting seven to one, because
+it judged hands only by strength relative to the table and had no way to express pot odds.
 
 **§6 says the table is configurable 2–9 players; only 2–6 works.** There are six personalities
 and `castOf` throws above that. Accepted: six seats is the intended game, and adding more would

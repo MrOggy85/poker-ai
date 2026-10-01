@@ -128,3 +128,7 @@ call with a hand a rule bot would fold, and that is the entertainment. Whether t
 Twelve situations is a small set, written by one person, and it encodes one view of what
 sensible play looks like. It is enough to catch a model folding pocket aces; it is not enough
 to separate 7/12 from 5/12. Treat the ordering as real and the exact numbers as indicative.
+
+**Update, 2026-10-01:** the set has since grown to 32 situations. The figures above were
+measured on the original twelve and have not been re-run; the ordering is very unlikely to
+have changed, but the numbers no longer correspond to the current fixture.
