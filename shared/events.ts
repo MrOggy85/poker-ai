@@ -27,6 +27,14 @@ export type SeatStatus = 'active' | 'folded' | 'allin' | 'out';
 
 export type ActionKind = 'fold' | 'check' | 'call' | 'bet' | 'raise';
 
+/** The last thing a seat did, so the table shows it without anyone reading the log. */
+export interface LastAction {
+  kind: ActionKind;
+  /** Street total after the action - what is in front of them. */
+  to: number;
+  allIn: boolean;
+}
+
 export interface SeatView {
   seat: number;
   id: string;
@@ -45,6 +53,10 @@ export interface SeatView {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   thinking: boolean;
+  /** Cleared at the start of each street, except a fold, which stands for the whole hand. */
+  lastAction: LastAction | null;
+  /** True for the seat that acted most recently, so the newest action reads as the newest. */
+  justActed: boolean;
   /** Audience-only win chance, like the bars on televised poker. */
   equity: number | null;
   /** Finishing place once eliminated. */

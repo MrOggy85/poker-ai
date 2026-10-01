@@ -1,4 +1,4 @@
-import { MOOD_EMOJI, type SeatView } from '../../../shared/events.ts';
+import { type LastAction, MOOD_EMOJI, type SeatView } from '../../../shared/events.ts';
 import { ordinal } from '../store.ts';
 import ui from '../ui.module.css';
 import { Card } from './Card.tsx';
@@ -14,6 +14,38 @@ function position(seat: number, total: number): { left: string; top: string } {
     left: `${50 + Math.cos(angle) * 44}%`,
     top: `${50 + Math.sin(angle) * 40}%`,
   };
+}
+
+/** The verb and the amount, so the table reads without anyone consulting the action log. */
+function describe(action: LastAction): string {
+  const chips = action.to.toLocaleString('en-US');
+  if (action.allIn) return `ALL IN ${chips}`;
+  switch (action.kind) {
+    case 'fold':
+      return 'FOLD';
+    case 'check':
+      return 'CHECK';
+    case 'call':
+      return `CALL ${chips}`;
+    case 'bet':
+      return `BET ${chips}`;
+    case 'raise':
+      return `RAISE ${chips}`;
+  }
+}
+
+function actionClass(action: LastAction): string {
+  if (action.allIn) return ui.actionAllIn;
+  switch (action.kind) {
+    case 'fold':
+      return ui.actionFold;
+    case 'check':
+      return ui.actionCheck;
+    case 'call':
+      return ui.actionCall;
+    default:
+      return ui.actionBet;
+  }
 }
 
 export function Seat({ seat, total, isWinner, shownHand }: {
@@ -55,12 +87,21 @@ export function Seat({ seat, total, isWinner, shownHand }: {
         </div>
       )}
 
+      {seat.lastAction && (
+        <div
+          className={[ui.action, actionClass(seat.lastAction), seat.justActed ? ui.actionJust : '']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {describe(seat.lastAction)}
+        </div>
+      )}
+
       <div className={ui.badges}>
         <span className={ui.mood}>{MOOD_EMOJI[seat.mood]} {seat.mood}</span>
         {seat.isButton && <span className={ui.buttonTag}>D</span>}
         {seat.isSmallBlind && <span className={ui.blindTag}>SB</span>}
         {seat.isBigBlind && <span className={ui.blindTag}>BB</span>}
-        {seat.streetBet > 0 && <span className={ui.bet}>{seat.streetBet.toLocaleString('en-US')}</span>}
         {shownHand && <span className={ui.blindTag}>{shownHand}</span>}
       </div>
     </div>

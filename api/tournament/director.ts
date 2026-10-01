@@ -1,5 +1,5 @@
 import { type Card, cardsToStrings } from '../../shared/cards.ts';
-import type { LogLine, Mood, PotView, ServerEvent, Snapshot, Speed } from '../../shared/events.ts';
+import type { LastAction, LogLine, Mood, PotView, ServerEvent, Snapshot, Speed } from '../../shared/events.ts';
 import { makeRng, type Rng } from '../../shared/rng.ts';
 import type { Config } from '../config.ts';
 import logger from '../logger.ts';
@@ -83,6 +83,15 @@ export class Director {
 
   /** The hand in progress, kept only so a reconnecting viewer can be handed the current table. */
   #hand: HandState | null = null;
+  /**
+   * Hand seat index to table seat index.
+   *
+   * These are not the same thing: only players with chips are dealt in, so `hand.seats` is
+   * compacted while the table keeps every seat for the whole tournament. Mixing the two is the
+   * bug this exists to prevent - the snapshot used to index `hand.seats` by table seat, which
+   * is correct exactly until the first elimination and silently wrong afterwards.
+   */
+  #dealtIn: number[] = [];
   #thinking: number | null = null;
   #equities = new Map<number, number>();
 
@@ -146,6 +155,7 @@ export class Director {
     this.#log = [];
     this.#finished = false;
     this.#hand = null;
+    this.#dealtIn = [];
     this.#thinking = null;
     this.#equities.clear();
     this.#moods?.reset();
@@ -182,12 +192,27 @@ export class Director {
   snapshot(): Snapshot {
     const hand = this.#hand;
     const [smallBlind, bigBlind] = this.#blinds();
-    const seatCount = this.#players.length;
 
-    const smallBlindSeat = hand ? (seatCount === 2 ? hand.button : (hand.button + 1) % seatCount) : -1;
-    const bigBlindSeat = hand
-      ? (seatCount === 2 ? (hand.button + 1) % seatCount : (hand.button + 2) % seatCount)
-      : -1;
+    /** Table seat to hand seat, or -1 if this player was not dealt into the current hand. */
+    const handSeatOf = (tableSeat: number) => this.#dealtIn.indexOf(tableSeat);
+
+    // The button and blinds are hand seats, so they must be converted before anything compares
+    // them against a table seat.
+    const dealt = this.#dealtIn.length;
+    const seatAt = (handSeat: number) => (hand && dealt > 0 ? this.#dealtIn[handSeat % dealt] : -1);
+    const buttonSeat = hand && dealt > 0 ? seatAt(hand.button) : -1;
+    const smallBlindSeat = hand && dealt > 0 ? seatAt(dealt === 2 ? hand.button : hand.button + 1) : -1;
+    const bigBlindSeat = hand && dealt > 0 ? seatAt(dealt === 2 ? hand.button + 1 : hand.button + 2) : -1;
+
+    // Derived from the hand history rather than tracked separately, so a reconnecting viewer
+    // gets the same badges as someone who watched them appear. A fold stands for the whole
+    // hand; everything else is cleared when the street changes.
+    const lastActions = new Map<number, LastAction>();
+    for (const action of hand?.history ?? []) {
+      if (action.street !== hand!.street && !hand!.seats[action.seat].folded) continue;
+      lastActions.set(action.seat, { kind: action.kind, to: action.to, allIn: action.allIn });
+    }
+    const lastActor = hand && hand.history.length > 0 ? hand.history[hand.history.length - 1].seat : -1;
 
     return {
       epoch: this.#epoch,
@@ -201,7 +226,8 @@ export class Director {
       pots: this.#pots(),
       potTotal: hand ? potSize(hand) : 0,
       seats: this.#players.map((player) => {
-        const seat = hand?.seats[player.seat];
+        const handSeat = hand ? handSeatOf(player.seat) : -1;
+        const seat = handSeat >= 0 ? hand!.seats[handSeat] : undefined;
         const inHand = Boolean(seat) && player.place === null;
         return {
           seat: player.seat,
@@ -220,10 +246,12 @@ export class Director {
           hole: inHand && seat?.hole ? seat.hole : null,
           mood: player.mood,
           thought: player.thought,
-          isButton: hand ? hand.button === player.seat : false,
+          isButton: buttonSeat === player.seat,
           isSmallBlind: smallBlindSeat === player.seat,
           isBigBlind: bigBlindSeat === player.seat,
           thinking: this.#thinking === player.seat,
+          lastAction: handSeat >= 0 ? lastActions.get(handSeat) ?? null : null,
+          justActed: handSeat >= 0 && handSeat === lastActor,
           equity: this.#equities.get(player.seat) ?? null,
           place: player.place,
         };
@@ -348,6 +376,7 @@ export class Director {
     // Only players with chips are dealt in. Seat indices in the hand are compacted, so this
     // map keeps the audience-facing seat number stable across eliminations.
     const dealtIn = contenders.map((player) => player.seat);
+    this.#dealtIn = dealtIn;
     const toTableSeat = (handSeat: number) => dealtIn[handSeat];
     const buttonInHand = dealtIn.indexOf(this.#button);
 
@@ -412,6 +441,9 @@ export class Director {
             await this.#pacer.beat('showdown');
           } else if (event.type === 'hand_finished') {
             this.#syncStacks(state, toTableSeat);
+            // After settling, so the pot reflects any uncalled bet handed back. Without this
+            // the table reads "pot 2,400" next to "takes 1,200" and looks like a bug.
+            this.#emitPot(state);
             const awards = event.awards.map((award) => ({ seat: toTableSeat(award.seat), amount: award.amount }));
             this.#emit({ type: 'hand_finished', handNo: this.#handNo, awards });
             // A showdown has already announced its winners; this line is for the far more

@@ -83,6 +83,8 @@ export function reduce(view: View, event: ServerEvent): View {
           hole: null,
           thought: null,
           thinking: false,
+          lastAction: null,
+          justActed: false,
           equity: null,
           status: seat.place !== null ? 'out' : 'active',
           isButton: seat.seat === event.button,
@@ -107,7 +109,14 @@ export function reduce(view: View, event: ServerEvent): View {
         ...view,
         street: event.street,
         board: [...view.board, ...event.cards],
-        seats: view.seats.map((seat) => ({ ...seat, streetBet: 0 })),
+        seats: view.seats.map((seat) => ({
+          ...seat,
+          streetBet: 0,
+          // A fold stands for the rest of the hand - it is how you see who is still in.
+          // Everything else belongs to the street that just ended.
+          lastAction: seat.status === 'folded' ? seat.lastAction : null,
+          justActed: false,
+        })),
       };
 
     case 'player_thinking':
@@ -119,11 +128,14 @@ export function reduce(view: View, event: ServerEvent): View {
       return withSeat(view, event.seat, { thought: event.text, thinking: false });
 
     case 'player_action': {
-      const next = withSeat(view, event.seat, {
+      const cleared = { ...view, seats: view.seats.map((seat) => ({ ...seat, justActed: false })) };
+      const next = withSeat(cleared, event.seat, {
         stack: event.stackAfter,
         streetBet: event.to,
         thinking: false,
         status: event.kind === 'fold' ? 'folded' : event.allIn ? 'allin' : 'active',
+        lastAction: { kind: event.kind, to: event.to, allIn: event.allIn },
+        justActed: true,
       });
       return note(next, `${nameOf(view, event.seat)} ${describe(event)}`);
     }

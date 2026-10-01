@@ -175,13 +175,51 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.bet {
+/* What this seat just did. The single clearest thing on a seat after the cards: colour says
+   the kind of action, the text says the amount, and the newest one is outlined so "who just
+   moved" reads at a glance without following the log. */
+.action {
   font-size: 11px;
-  color: var(--text);
-  background: var(--chip-red);
-  padding: 1px 7px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 2px 8px;
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  animation: pop 220ms ease both;
+}
+
+.actionFold {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+}
+
+.actionCheck {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.actionCall {
+  background: var(--chip-blue);
+  color: #eaf1ff;
+}
+
+.actionBet {
+  background: var(--chip-red);
+  color: #fff0ee;
+}
+
+.actionAllIn {
+  background: linear-gradient(90deg, #c0453b, #e0a13a);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(224, 161, 58, 0.5);
+}
+
+/* The most recent action at the table. */
+.actionJust {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(217, 180, 91, 0.35);
 }
 
 /* A thought is private to the bot: the audience is eavesdropping, so it reads differently
@@ -347,6 +385,13 @@
 .disconnected {
   color: var(--chip-red);
   font-size: 12px;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
 }
 
 @keyframes deal {
