@@ -24,6 +24,7 @@ CONTAINER_NAME=poker-ai
 IMAGE=poker-ai:latest
 PORT=8780
 NETWORK=poker-net
+JEFF_NETWORK=jeff-net
 
 if ! $DOCKER image inspect $IMAGE >/dev/null 2>&1; then
   echo_red "$IMAGE does not exist - build it with ./deploy/build.sh first"
@@ -31,6 +32,7 @@ if ! $DOCKER image inspect $IMAGE >/dev/null 2>&1; then
 fi
 
 $DOCKER network create $NETWORK >/dev/null 2>&1 || true
+$DOCKER network create $JEFF_NETWORK >/dev/null 2>&1 || true
 mkdir -p deploy/data
 
 echo_yellow "stopping..."
@@ -50,10 +52,13 @@ $DOCKER run \
   -p 127.0.0.1:$PORT:$PORT \
   -v "$PWD/deploy/data:/app/data" \
   -e TZ=Asia/Tokyo \
-  -e DECISION_URL=http://poker-jeff:8781 \
+  -e DECISION_URL=http://jeff:8781 \
   -e MONOLOGUE_URL=http://poker-llama:8080 \
   $IMAGE \
   || { echo_red "failed to start"; exit 1; }
+
+# Jeff is a shared service (~/jeff) on its own network; the app talks to both.
+$DOCKER network connect $JEFF_NETWORK $CONTAINER_NAME >/dev/null 2>&1
 
 for _ in $(seq 1 20); do
   code=$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/health" 2>/dev/null)

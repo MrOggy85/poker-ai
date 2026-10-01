@@ -1,5 +1,5 @@
 #!/bin/bash
-# Starts the two model services on loopback: Jeff (decisions) and llama.cpp (monologues).
+# Starts the model services: llama.cpp (monologues) here, and Jeff (decisions) via ~/jeff.
 # Separate from the app so the app can be restarted without evicting 2 GB of loaded weights.
 #
 # The active docker context on this machine is `rootless` but the daemon running everything
@@ -49,38 +49,8 @@ $DOCKER run -d \
   -m "/weights/$GGUF" --host 0.0.0.0 --port 8080 -t 2 -c 1024 -n 48 \
   || { echo_red "poker-llama failed to start"; exit 1; }
 
-# --- decisions: jeff ----------------------------------------------------------------------
-if ! $DOCKER image inspect poker-jeff:latest >/dev/null 2>&1; then
-  echo_yellow "building poker-jeff:latest (slow - it resolves the CPU torch stack)..."
-  $DOCKER build -t poker-jeff:latest models/jeff \
-    || { echo_red "jeff image build failed"; exit 1; }
-fi
-
-if [[ ! -d "$WEIGHTS/jeff-0.8b" ]]; then
-  echo_yellow "downloading the Jeff checkpoint (~1.7 GB)..."
-  $DOCKER run --rm -v "$WEIGHTS:/weights" poker-jeff:latest \
-    uv run hf download mstrasser/Jeff-Qwen3.5-0.8B --local-dir /weights/jeff-0.8b \
-    || { echo_red "checkpoint download failed"; exit 1; }
-fi
-
-# Three threads, not two. Measured on this box: 2 threads 8.3 s per decision, 3 threads 3.7 s,
-# 4 threads 3.1 s. The cliff is between 2 and 3, so 3 buys almost all of the speed while
-# leaving a core for Paperless and everything else. Keep OMP_NUM_THREADS equal to --cpus:
-# torch does not read the cgroup quota, so leaving it at nproc runs 4 threads inside a
-# 3-core budget and is measurably *slower* than 3.
-echo_yellow "starting poker-jeff..."
-$DOCKER rm -f poker-jeff >/dev/null 2>&1 || true
-$DOCKER run -d \
-  --name poker-jeff \
-  --restart unless-stopped \
-  --network $NETWORK \
-  --cpus=3 \
-  -e OMP_NUM_THREADS=3 \
-  -e MKL_NUM_THREADS=3 \
-  -p 127.0.0.1:$JEFF_PORT:8781 \
-  -v "$WEIGHTS:/weights" \
-  poker-jeff:latest \
-  || { echo_red "poker-jeff failed to start"; exit 1; }
+# --- decisions: jeff is a shared service now, see ~/jeff/jeff.sh ---------------------------
+$HOME/jeff/jeff.sh up
 
 # Jeff loads 1.7 GB of weights before it answers /health, which takes a while on this box.
 echo_yellow "waiting for the model services..."

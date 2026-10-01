@@ -37,7 +37,7 @@ Two traps in doing that:
 - Uninstalling leaves the package directory importable, so `rm -rf` the leftover too. Verify
   with an `import fla` that must *fail*, or the build passes and every request still 500s.
 
-`models/jeff/Dockerfile` does all of this and fails the build if `fla` survives.
+`~/jeff/Dockerfile` (formerly `models/jeff/`) does all of this and fails the build if `fla` survives.
 
 ## GOTCHA: do not run the server through `uv run`
 
