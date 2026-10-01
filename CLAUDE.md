@@ -26,7 +26,7 @@ was built, and the few things that were deliberately left out.
     make sanity                # hand-written situations vs the rule bot (pass/fail)
     make SOURCE=jeff sanity    # the same set vs the classifier (a tuning report)
     make bench                 # measure real Jeff / LLM latency on this machine
-    make models-up             # start the jeff + llama.cpp containers
+    make models-up             # start llama.cpp here and Jeff via ~/jeff/jeff.sh
     make deploy-build && make deploy-up
 
 `/api/debug` reports queue depth, per-model latencies, fallback counters, breaker state and
@@ -100,7 +100,7 @@ Jeff is the largest single process on the machine by memory, but less than it fi
 **4.25 GB peak, 2.4 GB steady-state resident**, with the remaining ~2.1 GB of one-time import
 and load overhead paged out to swap and never faulted back in. Waking from a long idle cost
 5.0 s on the first decision against a 4.4 s median - inside normal variance. The idle gate
-saves CPU, not memory, so `deploy/models-ondemand.sh` (user cron, every minute) stops the Jeff and llama containers after 10 minutes with no viewers and restarts them when one connects (`status|up|down` to drive it by hand). The Director holds each hand (and a mid-hand resume) until `/health` answers on both services, announcing it as `waitingFor` in the snapshot and a `models_waiting` event, which the client shows as a "Waiting for Jeff..." banner; after 3 minutes it gives up and the rule bot plays. A new `ServerEvent` must also go in `SERVER_EVENT_TYPES` or the browser silently never hears it (`shared/events_test.ts` checks). See
+saves CPU, not memory, so `deploy/models-ondemand.sh` (user cron, every minute) stops the llama container after 10 minutes with no viewers and restarts it when one connects (`status|up|down` to drive it by hand). **This repo no longer owns Jeff**: it is the shared service in `~/jeff` (container `jeff`, network `jeff-net`, `http://jeff:8781`), and poker only renews a `poker` lease on it; `~/jeff/jeff.sh reap` stops it once every client's lease has lapsed. The Director holds each hand (and a mid-hand resume) until `/health` answers on both services, announcing it as `waitingFor` in the snapshot and a `models_waiting` event, which the client shows as a "Waiting for Jeff..." banner; after 3 minutes it gives up and the rule bot plays. A new `ServerEvent` must also go in `SERVER_EVENT_TYPES` or the browser silently never hears it (`shared/events_test.ts` checks). See
 `reports/2026-10-01-spec-coverage.md`.
 
 ## Decision providers
@@ -186,7 +186,7 @@ reading `firelex/jeff` v0.2.0 source instead, and the source wins.
 
 Realistic prompts (~200 input tokens, five worded options), not toy strings - token count is
 most of the cost for a one-pass classifier. The cliff between 2 and 3 threads is why
-`models-up.sh` runs Jeff at `--cpus=3`: it buys nearly all the speed and still leaves a core
+`~/jeff/jeff.sh` runs Jeff at `--cpus=3`: it buys nearly all the speed and still leaves a core
 for the rest of the machine. **Keep `OMP_NUM_THREADS` equal to `--cpus`** - torch does not read
 the cgroup quota, so the default (`nproc` = 4) runs 4 threads inside a 3-core budget and is
 slower than 3.
