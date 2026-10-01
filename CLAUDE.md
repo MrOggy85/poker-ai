@@ -95,7 +95,12 @@ Three things keep that from mattering, in order of how much they save:
 The speed setting barely helps - `slow` measured 1.85 cores against `normal`'s 2.03. The 4.5 s
 decision dominates and no beat shrinks it.
 
-Jeff is also the largest single process on the machine by memory, at **4.05 GiB RSS**.
+Jeff is the largest single process on the machine by memory, but less than it first looks:
+**4.25 GB peak, 2.4 GB steady-state resident**, with the remaining ~2.1 GB of one-time import
+and load overhead paged out to swap and never faulted back in. Waking from a long idle cost
+5.0 s on the first decision against a 4.4 s median - inside normal variance. The idle gate
+saves CPU, not memory: that 2.4 GB is held even with nobody watching. See
+`reports/2026-10-01-spec-coverage.md`.
 
 ## Decision providers
 

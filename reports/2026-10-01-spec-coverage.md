@@ -40,18 +40,48 @@ already costs ~4.1 s here, so there is no headroom. The wire types exist in
 **§15 — replaying a finished hand in the web view.** Marked optional in the spec. The hand log
 carries everything needed for it.
 
-## Known gaps — real, not optional
+## Known gaps
 
 **§16 asks for 30–50 hand-written decision situations; `fixtures/sanity.ts` has 12.** Enough to
 catch a model folding pocket aces, and it did. Not enough to distinguish 7/12 from 5/12, which
 mattered when comparing decision providers — see the caveat in
-`2026-09-30-decision-model-comparison.md`. Worth growing if the wording is tuned again.
+`2026-09-30-decision-model-comparison.md`. Being grown.
 
 **§6 says the table is configurable 2–9 players; only 2–6 works.** There are six personalities
-and `castOf` throws above that. Fixing it means writing three more characters, not changing
-code.
+and `castOf` throws above that. Accepted: six seats is the intended game, and adding more would
+mean inventing characters nobody asked for. Treat 2–6 as the real range.
 
-**§3 sets a budget of ~4 GB for both models together; the real figure is ~4.7 GB.** Jeff alone
-is 4.05 GiB resident — the spec's estimate assumed MLX on Apple Silicon rather than PyTorch on
-CPU. The monologue model is 0.5 GB and well inside what was assumed. This fits the machine but
-leaves less headroom than planned.
+## The memory budget, and why it is not a problem
+
+§3 set a target of ~4 GB for both models together. The honest figure depends entirely on when
+you measure, which took a while to work out.
+
+From the container's cgroup, with the game idle:
+
+| | |
+|---|---|
+| peak ever | **4246 MB** |
+| resident now | 2431 MB |
+| swapped out | 2171 MB |
+
+The 4 GB figure quoted earlier was the **peak**, measured during active play shortly after
+startup. The steady-state working set is 2.4 GB, of which roughly 1.6 GB is the bf16 weights.
+
+The other 2.1 GB is one-time import and load overhead — torch and transformers, plus
+dependencies the serve path never touches (`jeff`'s install pulls in `datasets` and
+`matplotlib`). The kernel paged all of it to swap while the game sat idle, **and inference
+never asked for it back**: after waking up and playing a dozen hands, resident and swapped were
+both unchanged.
+
+The cost of that is close to nothing. The first decision after forty hours idle took 5.0 s
+against a 4.4 s median — inside normal variance, because swap is on an SSD and the pages are
+never faulted back anyway.
+
+So: the spec's ~4 GB target was written for a laptop, and the real working set is comfortably
+inside it. The peak is not, but the peak is transient. Two things to keep in mind:
+
+- Jeff holds ~2.4 GB resident **permanently**, including while the game is idle and nobody is
+  watching. The idle gate saves CPU, not memory. Stopping the container between sessions would
+  reclaim it at the cost of a ~40 s model load on the next viewer.
+- About half the machine's 4.1 GB of swap-in-use is Jeff's cold pages. Harmless here, but it is
+  swap that something else might have wanted.
