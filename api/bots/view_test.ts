@@ -10,8 +10,7 @@ import { CAST } from './personalities.ts';
 import { buildBotView } from './view.ts';
 
 /**
- * PROJECT.md section 10: a bot may never see another player's hole cards, mood or inner
- * monologue. The type system does most of the work - `BotView` has no field that could carry
+ * A bot may never see another player's hole cards, mood or inner monologue. The type system does most of the work - `BotView` has no field that could carry
  * them - but a test has to prove it end to end, because the leak that matters is the one
  * somebody adds later.
  */

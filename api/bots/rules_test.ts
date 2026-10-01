@@ -2,7 +2,7 @@ import { assert } from 'jsr:@std/assert@1';
 import { simulate } from '../../scripts/simulate.ts';
 
 /**
- * PROJECT.md section 18 requires each bot's behaviour to be visibly distinct. That is not a
+ * Each bot's behaviour has to be visibly distinct - an acceptance criterion. That is not a
  * thing you can eyeball reliably, so it is measured: play real tournaments and compare the
  * numbers.
  *

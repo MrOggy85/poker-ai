@@ -1,7 +1,9 @@
 # poker-ai
 
 A Texas Hold'em tournament played entirely by AI bots and watched live in a browser.
-`PROJECT.md` is the specification; this file is what you need to know to work on it.
+This file is what you need to know to work on it. The original specification was removed
+once v1 was complete; `reports/2026-10-01-spec-coverage.md` records what it asked for, what
+was built, and the few things that were deliberately left out.
 
 ## Shape
 
@@ -50,7 +52,8 @@ on this machine.
   is rootful. Always `docker -c default`.
 - **No `Math.random` anywhere in `api/`.** Everything random draws from the seeded `Rng` in
   `shared/rng.ts`, or games stop being replayable from their seed.
-- **Information hiding is a hard requirement** (PROJECT.md section 10) with a test behind it.
+- **Information hiding is a hard requirement** with a test behind it: a bot may never see
+  another player's hole cards, mood or inner monologue.
   A bot brain takes a `BotView`, never the full `HandState`. Never widen that signature.
 
 ## Conventions worth knowing before you touch the engine
@@ -148,10 +151,10 @@ better to a human collapsed the model's confidence across every unrelated case. 
 `make SOURCE=jeff sanity` and keep the number** - never by ear. The current score is 9/12; the
 rule bot must stay at 12/12 and has a test.
 
-## Jeff: corrections to PROJECT.md
+## Jeff: the README is wrong about some of this
 
-PROJECT.md was written against the README; these come from reading `firelex/jeff` v0.2.0
-source, and the source wins.
+The spec this project was built from took the Jeff README at its word. These come from
+reading `firelex/jeff` v0.2.0 source instead, and the source wins.
 
 - **Max options is 26, not 255.** The server reads `max_options` from `decision_config.json`
   and 422s beyond it. Our action menus are at most 6, so this only constrains future ideas.
@@ -182,7 +185,7 @@ for the rest of the machine. **Keep `OMP_NUM_THREADS` equal to `--cpus`** - torc
 the cgroup quota, so the default (`nproc` = 4) runs 4 threads inside a 3-core budget and is
 slower than 3.
 
-At 3.7 s Jeff is in the hot path as PROJECT.md intends, but only just: at `slow` pacing the
+At 3.7 s Jeff is in the hot path as intended, but only just: at `slow` pacing the
 beat already on screen hides most of it. If it ever regresses, the escape hatches in order are
 pacing lookahead, then asking Jeff only about close decisions, then `decision.enabled = false`.
 
@@ -212,7 +215,7 @@ Full write-up of the model setup, including the container traps:
 
 ## This machine
 
-Intel N100: 4 cores, **no GPU**, 15 GiB RAM. PROJECT.md's Apple Silicon / MLX assumptions do
+Intel N100: 4 cores, **no GPU**, 15 GiB RAM. The spec's Apple Silicon / MLX assumptions do
 not apply - Jeff runs the PyTorch CPU backend. Its own README reports 463 ms per decision on
 32 threads, so expect seconds here; `make bench` measures it. The design stays playable
 without either model: rule-based decisions and template monologues are a permanent path, not

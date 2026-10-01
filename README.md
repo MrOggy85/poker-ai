@@ -59,7 +59,9 @@ Two write-ups in `reports/`, both of which cost real time to learn:
   get it running without a GPU, measured latency against thread count, and the API details its
   README gets wrong.
 
-See `PROJECT.md` for the specification and `CLAUDE.md` for how to work on the code.
+See `CLAUDE.md` for how to work on the code. The original specification was removed once v1
+was complete; `reports/2026-10-01-spec-coverage.md` records what it required and what was
+deliberately left out.
 
 ## Licence
 

@@ -5,8 +5,7 @@ import { Director } from '../tournament/director.ts';
 import { BotBrain } from './brain.ts';
 
 /**
- * PROJECT.md section 18: the game must still work with Jeff unavailable and with the monologue
- * model disabled. On a machine where a decision costs about four seconds and both models are
+ * The game must still work with Jeff unavailable and with the monologue model disabled. On a machine where a decision costs about four seconds and both models are
  * containers that can be stopped, this is an everyday condition rather than a disaster - so it
  * is tested as one, by running whole tournaments to a winner against a broken service.
  */

@@ -57,7 +57,7 @@ export interface Config {
 const DEFAULT_PATH = fromFileUrl(new URL('../config/tournament.json', import.meta.url));
 
 /**
- * The single config file from PROJECT.md section 14. Env vars override only the endpoints,
+ * The single config file the spec asked for. Env vars override only the endpoints,
  * because those differ between `make dev` (loopback) and the container (service names).
  */
 export function loadConfig(path = Deno.env.get('CONFIG_PATH') || DEFAULT_PATH): Config {

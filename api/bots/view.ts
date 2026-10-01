@@ -6,7 +6,7 @@ import { legalActions, potSize } from '../engine/betting.ts';
 import type { Personality } from './personalities.ts';
 
 /**
- * The information-hiding boundary required by PROJECT.md section 10.
+ * The information-hiding boundary, and one of the project's hard requirements.
  *
  * `buildBotView` is the ONLY way to turn game state into something a bot can reason about, and
  * everything downstream - the prompt builder, the option builder, the rule bot, the sampler -

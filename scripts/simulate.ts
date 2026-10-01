@@ -1,8 +1,8 @@
 /**
  * Plays whole tournaments headlessly at turbo speed and reports how each bot behaved.
  *
- * This is the check behind "each bot's behaviour is visibly distinct" in PROJECT.md section
- * 18. Personality is supposed to come from the words, so it has to be measurable in the
+ * This is the check behind the acceptance criterion that each bot's behaviour is visibly
+ * distinct. Personality is supposed to come from the words, so it has to be measurable in the
  * actions - if The Rock and The Maniac produce similar numbers here, no amount of model
  * output will make them feel different on screen.
  *

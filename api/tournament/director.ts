@@ -107,7 +107,7 @@ export class Director {
   }
 
   /**
-   * PROJECT.md section 16 asks for measured resource use. On a machine where a decision costs
+   * The spec asks for measured resource use. On a machine where a decision costs
    * about four seconds, "is Jeff actually answering, or has everything quietly fallen back to
    * the rule bot?" is the question you want answerable without reading logs.
    */

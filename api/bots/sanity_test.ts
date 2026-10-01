@@ -6,8 +6,8 @@ import { assert } from 'jsr:@std/assert@1';
  * way it deliberately is not for the classifier.
  *
  * Jeff is measured by `deno run -A scripts/sanity.ts --source jeff`, which is a report rather
- * than a test: its answers drift, and PROJECT.md is explicit that personality matters more
- * than correctness. It sits at 9/12.
+ * than a test: its answers drift, and this game wants personality more than correctness.
+ * It sits at 9/12.
  */
 Deno.test('the rule bot handles every sanity situation', async () => {
   const command = new Deno.Command(Deno.execPath(), {

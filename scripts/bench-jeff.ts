@@ -1,7 +1,7 @@
 /**
  * How long does one poker decision actually cost on this machine?
  *
- * PROJECT.md was written for an Apple Silicon MacBook where Jeff answers in ~28 ms on the MLX
+ * This was specified for an Apple Silicon MacBook, where Jeff answers in ~28 ms on the MLX
  * backend. Here it is PyTorch on four N100 cores. Jeff's own README reports 463 ms on 32
  * threads, so the honest expectation is seconds - and whether it is 2 s or 20 s decides
  * whether Jeff sits in the hot path or only answers the interesting decisions.
