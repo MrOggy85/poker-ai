@@ -1,6 +1,6 @@
-import type { Card } from '../../shared/cards.ts';
+import { type Card, cardsToStrings } from '../../shared/cards.ts';
 import type { LogLine, Mood, PotView, ServerEvent, Snapshot, Speed } from '../../shared/events.ts';
-import { makeRng } from '../../shared/rng.ts';
+import { makeRng, type Rng } from '../../shared/rng.ts';
 import type { Config } from '../config.ts';
 import logger from '../logger.ts';
 import { Cancelled, Pacer } from '../broadcast/pacing.ts';
@@ -12,6 +12,7 @@ import { estimateEquity } from '../engine/equity.ts';
 import { describe } from '../engine/evaluator.ts';
 import type { Action, HandState } from '../engine/types.ts';
 import { castOf, type Personality } from '../bots/personalities.ts';
+import type { Reaction } from '../bots/prompt.ts';
 import { Moods } from '../bots/mood.ts';
 
 /**
@@ -48,6 +49,8 @@ export interface Brain {
   onHandFinished?(state: HandState, nameOf: (handSeat: number) => string): void;
   /** Queue depth, latencies and fallback counters, for /api/debug. */
   stats?(): Record<string, unknown>;
+  /** A folded player's remark on the hand still going on. Public information only. */
+  react?(reaction: Reaction, rng: Rng): Promise<Decision['thought']>;
 }
 
 interface Player {
@@ -496,9 +499,68 @@ export class Director {
     this.#note(`${player.personality.name} ${describeAction(action, seat.street)}`);
     this.#syncStacks(next, toTableSeat);
     this.#emitPot(next);
+
+    this.#maybeReact(next, action, player.personality.name, seat.allIn, toTableSeat);
+
     await this.#pacer.beat('action');
 
     return next;
+  }
+
+  /**
+   * Someone who has folded says something about the hand carrying on without them.
+   *
+   * Deliberately not awaited. A remark costs about 0.7 s of the monologue model, and making the
+   * table wait for commentary would be the wrong trade - it arrives when it arrives, and is
+   * dropped if the hand has moved on by then. Only a *notable* action draws one, because
+   * reacting to a check is not interesting.
+   */
+  #maybeReact(
+    state: HandState,
+    action: Action,
+    actorName: string,
+    allIn: boolean,
+    toTableSeat: (handSeat: number) => number,
+  ): void {
+    if (!this.#brain.react) return;
+    if (this.#pacer.speed === 'turbo') return;
+    const notable = allIn || action.kind === 'bet' || action.kind === 'raise';
+    if (!notable) return;
+
+    const rng = makeRng(this.#seed, `react:h${this.#handNo}:${state.history.length}`);
+    if (!rng.chance(this.#config.monologue.reactionChance)) return;
+
+    // Folded in this hand, but still in the tournament. Nobody who was never dealt in speaks.
+    const candidates = state.seats
+      .map((seat, index) => ({ seat, index }))
+      .filter(({ seat, index }) => seat.folded && this.#players[toTableSeat(index)].place === null);
+    if (candidates.length === 0) return;
+
+    const picked = rng.pick(candidates);
+    const tableSeat = toTableSeat(picked.index);
+    const speaker = this.#players[tableSeat];
+    const epoch = this.#epoch;
+    const handNo = this.#handNo;
+
+    const reaction: Reaction = {
+      personality: speaker.personality,
+      mood: speaker.mood,
+      actor: actorName,
+      did: allIn ? 'moved all in' : action.kind === 'bet' ? 'bet into the pot' : 'raised',
+      board: cardsToStrings(state.board),
+      street: state.street,
+    };
+
+    void this.#brain.react(reaction, rng).then((thought) => {
+      // The hand may have ended while the model was thinking; a remark about a finished hand
+      // is worse than no remark.
+      if (!thought || this.#epoch !== epoch || this.#handNo !== handNo) return;
+      if (this.#players[tableSeat].place !== null) return;
+      this.#players[tableSeat].thought = thought.text;
+      this.#emit({ type: 'player_thought', seat: tableSeat, text: thought.text, source: thought.source });
+    }).catch(() => {
+      // A missing remark is not worth a log line.
+    });
   }
 
   #emitPot(state: HandState): void {

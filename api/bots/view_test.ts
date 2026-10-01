@@ -1,5 +1,5 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import type { Card } from '../../shared/cards.ts';
+import { type Card, cardsToStrings, cardToString } from '../../shared/cards.ts';
 import { makeRng } from '../../shared/rng.ts';
 import { Hub } from '../broadcast/hub.ts';
 import { loadConfig } from '../config.ts';
@@ -8,6 +8,7 @@ import { Director, type Brain, type DecisionRequest } from '../tournament/direct
 import { BotBrain } from './brain.ts';
 import { CAST } from './personalities.ts';
 import { buildBotView } from './view.ts';
+import { buildReactionPrompt, type Reaction } from './prompt.ts';
 
 /**
  * A bot may never see another player's hole cards, mood or inner monologue. The type system does most of the work - `BotView` has no field that could carry
@@ -113,4 +114,38 @@ Deno.test('nothing a bot is told during a whole tournament mentions another hand
     assert(!/\b[2-9TJQKA][cdhs]\b/.test(thought), `a monologue named a card: ${thought}`);
   }
   assertEquals(typeof thoughts[0], 'string');
+});
+
+Deno.test('a folded player\'s remark is built from public information only', () => {
+  const rng = makeRng('reaction', 'deck:h1');
+  const { state } = startHand({
+    handNo: 1,
+    button: 0,
+    sb: 50,
+    bb: 100,
+    players: CAST.map((personality) => ({ id: personality.id, stack: 10_000 })),
+  }, rng);
+
+  const reaction: Reaction = {
+    personality: CAST[2],
+    mood: 'bored',
+    actor: CAST[4].name,
+    did: 'moved all in',
+    board: cardsToStrings(state.board),
+    street: state.street,
+  };
+
+  // The type has no field that could hold a hole card, which is the real guarantee. This
+  // checks the rendered prompt too, because that is what actually reaches a model.
+  const prompt = buildReactionPrompt(reaction);
+  for (const seat of state.seats) {
+    for (const card of seat.hole!) {
+      // Word boundaries, not `includes`: a bare substring search for "Th" matches inside "The
+      // Showman", which is how this test failed the first time it was written.
+      const named = new RegExp(`\\b${cardToString(card)}\\b`).test(prompt);
+      assert(!named, `a reaction prompt named ${cardToString(card)}`);
+    }
+  }
+  assert(prompt.includes(CAST[4].name), 'it should mention who acted - that is public');
+  assert(prompt.includes(CAST[2].voice), 'and be in the speaker\'s voice');
 });

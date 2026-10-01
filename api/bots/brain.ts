@@ -11,10 +11,18 @@ import type { Brain, Decision, DecisionRequest } from '../tournament/director.ts
 import { temperatureFor } from './mood.ts';
 import { OpponentNotes } from './notes.ts';
 import { buildOptions, type Option, type OptionKey } from './options.ts';
-import { buildInstructions, buildMonologuePrompt, buildState, MONOLOGUE_EXAMPLES } from './prompt.ts';
+import {
+  buildInstructions,
+  buildMonologuePrompt,
+  buildReactionPrompt,
+  buildState,
+  MONOLOGUE_EXAMPLES,
+  type Reaction,
+  REACTION_EXAMPLES,
+} from './prompt.ts';
 import { isObvious, ruleDecision } from './rules.ts';
 import { sample } from './sampling.ts';
-import { templateThought } from './templates.ts';
+import { templateReaction, templateThought } from './templates.ts';
 import { buildBotView, type BotView } from './view.ts';
 import { HandLog } from '../log/handlog.ts';
 import { equityWords } from './words.ts';
@@ -238,6 +246,26 @@ export class BotBrain implements Brain {
       return { text, source: 'llm' };
     } catch {
       // Expected often enough on this hardware that it is not worth a warning.
+      return template;
+    }
+  }
+
+  /**
+   * A folded player's remark about the hand carrying on without them.
+   *
+   * `Reaction` carries no hole cards at all - not the other players' and not the speaker's own -
+   * so this cannot leak, and a line about a hand they already mucked is the dull half anyway.
+   * Returns null rather than throwing: a missing remark is not worth interrupting a game for.
+   */
+  async react(reaction: Reaction, rng: ReturnType<typeof makeRng>): Promise<Decision['thought']> {
+    const template = { text: templateReaction(reaction.personality, rng), source: 'template' as const };
+    if (!this.#monologue || !this.#monologue.available()) return template;
+
+    try {
+      const text = await this.#monologue.write(buildReactionPrompt(reaction));
+      if (REACTION_EXAMPLES.some((example) => text.startsWith(example))) return template;
+      return { text, source: 'llm' };
+    } catch {
       return template;
     }
   }

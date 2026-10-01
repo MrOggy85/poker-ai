@@ -50,7 +50,16 @@ export interface Config {
     /** Divide out the label prior for the logprob provider. Ignored by the others. */
     calibrate: boolean;
   };
-  monologue: { enabled: boolean; url: string; timeoutMs: number; maxTokens: number; routineChance: number };
+  monologue: {
+    enabled: boolean;
+    url: string;
+    timeoutMs: number;
+    maxTokens: number;
+    /** How often a routine check, call or fold earns a line. Aggression always does. */
+    routineChance: number;
+    /** How often a notable action draws a reaction from someone who has folded. */
+    reactionChance: number;
+  };
   log: { dir: string };
 }
 

@@ -1,5 +1,7 @@
 import { cardToString } from '../../shared/cards.ts';
 import { boardWords, equityWords, fieldWords, positionWords, potOddsWords, stackWords, streetWords } from './words.ts';
+import type { Mood, Street } from '../../shared/events.ts';
+import type { Personality } from './personalities.ts';
 import type { BotView } from './view.ts';
 
 /**
@@ -120,5 +122,47 @@ export function buildMonologuePrompt(view: BotView, actionText: string, reason: 
     `Player: ${self.name}, ${self.personality.voice}, feeling ${self.mood}. ` +
     `Just ${actionText} with a hand that is ${reason}.`,
     'Thought: "',
+  ].join('\n');
+}
+
+/**
+ * A folded player's remark about the hand still going on.
+ *
+ * Everything here is public: who acted, what they did, what is on the board. There are no hole
+ * cards in the argument list at all - not even the speaker's own, because a thought about the
+ * hand they just mucked is the dull half of this and the point is the reaction to the table.
+ */
+export interface Reaction {
+  /** What the speaker is like. */
+  personality: Personality;
+  mood: Mood;
+  /** The public action being reacted to. */
+  actor: string;
+  did: string;
+  /** Public board, as text. */
+  board: string[];
+  street: Street;
+}
+
+export const REACTION_EXAMPLES = [
+  'Glad that is not my problem.',
+  'Now this is what I came for.',
+];
+
+export function buildReactionPrompt(reaction: Reaction): string {
+  const board = reaction.board.length > 0 ? ` The board is ${reaction.board.join(' ')}.` : '';
+  return [
+    'Short remarks from poker players watching a hand they already folded out of.',
+    'First person, in character, one line each. They are commenting on the other players.',
+    '',
+    'Player: a cautious veteran, dry and unimpressed. Watching: someone bet most of their chips.',
+    `Remark: "${REACTION_EXAMPLES[0]}"`,
+    '',
+    'Player: a restless gambler, loud and reckless. Watching: two players going all in.',
+    `Remark: "${REACTION_EXAMPLES[1]}"`,
+    '',
+    `Player: ${reaction.personality.name}, ${reaction.personality.voice}, feeling ${reaction.mood}. ` +
+    `Watching: ${reaction.actor} ${reaction.did}.${board}`,
+    'Remark: "',
   ].join('\n');
 }

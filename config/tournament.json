@@ -48,7 +48,8 @@
     "url": "http://127.0.0.1:8782",
     "timeoutMs": 20000,
     "maxTokens": 40,
-    "routineChance": 0.25
+    "routineChance": 0.6,
+    "reactionChance": 0.5
   },
   "log": {
     "dir": "./data/logs"

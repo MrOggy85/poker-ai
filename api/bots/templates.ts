@@ -84,3 +84,17 @@ export function templateThought(personality: Personality, mood: Mood, key: Optio
   const prefix = rng.chance(0.3) ? MOOD_PREFIX[mood] ?? '' : '';
   return `${prefix}${line}`;
 }
+
+const REACTIONS: Record<string, string[]> = {
+  rock: ['Someone is about to learn something.', 'That is a lot of chips for a guess.', 'I would not have.'],
+  maniac: ['Oh, now it gets good.', 'Somebody is having my kind of hand.', 'Go on then. Do it.'],
+  station: ['Ooh. I would have called that.', 'I want to see how this ends.', 'That is brave.'],
+  shark: ['One of them is making a mistake.', 'That bet says more than they think.', 'Interesting.'],
+  rookie: ['I am very glad that is not me.', 'That is so much money.', 'How do they do that?'],
+  showman: ['The Showman approves of this drama.', 'Finally, someone else performing.', 'A bold scene.'],
+};
+
+/** The fallback for a folded player's remark, when the model is slow, off or repeating itself. */
+export function templateReaction(personality: Personality, rng: Rng): string {
+  return rng.pick(REACTIONS[personality.id] ?? REACTIONS.shark);
+}

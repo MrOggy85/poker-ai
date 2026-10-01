@@ -73,11 +73,20 @@
   transition: opacity 240ms ease;
 }
 
-.seatFolded {
+/* Dimming is applied to the seat's own furniture rather than to the seat, because a parent's
+   opacity compounds and a child cannot climb back out of it - and a folded player's reaction to
+   the hand still going on is one of the more interesting things on the table. */
+.seatFolded .plate,
+.seatFolded .holeCards,
+.seatFolded .badges,
+.seatFolded .equityBar {
   opacity: 0.38;
 }
 
-.seatOut {
+.seatOut .plate,
+.seatOut .holeCards,
+.seatOut .badges,
+.seatOut .equityBar {
   opacity: 0.18;
   filter: grayscale(1);
 }
