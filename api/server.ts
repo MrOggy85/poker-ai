@@ -5,6 +5,7 @@ import { Hub } from './broadcast/hub.ts';
 import { Director } from './tournament/director.ts';
 import { handleControl } from './routes/control.ts';
 import logger from './logger.ts';
+import { probe } from './inference/health.ts';
 
 // The client bundle, written here by client/build.ts.
 const CLIENT_DIR = fromFileUrl(new URL('./client', import.meta.url));
@@ -30,16 +31,6 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}
-
-/** Is a model service up? Used by /api/health so a silently dead Jeff is visible. */
-async function probe(url: string, path: string): Promise<'up' | 'down'> {
-  try {
-    const res = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(2000) });
-    return res.ok ? 'up' : 'down';
-  } catch {
-    return 'down';
-  }
 }
 
 export function init(config: Config, hub: Hub, director: Director) {

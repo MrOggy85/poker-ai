@@ -3,6 +3,7 @@ import type { LastAction, LogLine, Mood, PotView, ServerEvent, Snapshot, Speed }
 import { makeRng, type Rng } from '../../shared/rng.ts';
 import type { Config } from '../config.ts';
 import logger from '../logger.ts';
+import { modelsDown } from '../inference/health.ts';
 import { Cancelled, Pacer } from '../broadcast/pacing.ts';
 import type { Hub } from '../broadcast/hub.ts';
 import { advance, applyAction, startHand } from '../engine/engine.ts';
@@ -63,6 +64,9 @@ interface Player {
 }
 
 const LOG_LIMIT = 200;
+/** How long a hand waits for a sleeping model service before the rule bot plays instead. */
+const MODEL_WAIT_MS = 180_000;
+const MODEL_POLL_MS = 2_000;
 
 export class Director {
   #config: Config;
@@ -80,6 +84,8 @@ export class Director {
   #log: LogLine[] = [];
   #finished = false;
   #running = false;
+  #waitingFor: string[] = [];
+  #modelWaitGaveUp = false;
 
   /** The hand in progress, kept only so a reconnecting viewer can be handed the current table. */
   #hand: HandState | null = null;
@@ -154,6 +160,7 @@ export class Director {
     this.#level = 0;
     this.#log = [];
     this.#finished = false;
+    this.#waitingFor = [];
     this.#hand = null;
     this.#dealtIn = [];
     this.#thinking = null;
@@ -260,6 +267,7 @@ export class Director {
       speed: this.#pacer.speed,
       paused: this.#pacer.paused,
       finished: this.#finished,
+      waitingFor: this.#waitingFor,
     };
   }
 
@@ -316,6 +324,8 @@ export class Director {
         // still work, and it leaves the table mid-hand for whoever connects next.
         await this.#pacer.gate();
         if (this.#epoch !== epoch) return;
+        await this.#awaitModels(epoch);
+        if (this.#epoch !== epoch) return;
         await this.#playHand(epoch);
       }
       if (this.#epoch === epoch && this.#running) this.#finish();
@@ -325,6 +335,42 @@ export class Director {
     } finally {
       if (this.#epoch === epoch) this.#running = false;
     }
+  }
+
+  /**
+   * The model containers are stopped while nobody watches (deploy/models-ondemand.sh) and come
+   * back when a viewer connects, so the first hand has to wait for them. Without this the
+   * opening hands are played by the rule bot and the breaker has to half-open to recover.
+   * Gives up after MODEL_WAIT_MS so a genuinely dead service still degrades to the rule bot
+   * rather than freezing the table, and remembers that so later hands do not wait again.
+   */
+  async #awaitModels(epoch: number): Promise<void> {
+    let down = await modelsDown(this.#config);
+    if (down.length === 0) {
+      this.#modelWaitGaveUp = false;
+      return;
+    }
+    if (this.#modelWaitGaveUp) return;
+
+    const deadline = Date.now() + MODEL_WAIT_MS;
+    while (down.length > 0 && Date.now() < deadline) {
+      this.#setWaiting(down);
+      await this.#pacer.sleep(MODEL_POLL_MS);
+      await this.#pacer.gate();
+      if (this.#epoch !== epoch) return;
+      down = await modelsDown(this.#config);
+    }
+    if (down.length > 0) {
+      this.#modelWaitGaveUp = true;
+      logger.warn('model services still down; playing on the rule bot', { down });
+    }
+    this.#setWaiting([]);
+  }
+
+  #setWaiting(waitingFor: string[]): void {
+    if (waitingFor.join() === this.#waitingFor.join()) return;
+    this.#waitingFor = waitingFor;
+    this.#emit({ type: 'models_waiting', waitingFor });
   }
 
   /**
@@ -409,7 +455,11 @@ export class Director {
     this.#updateEquities(state, toTableSeat);
 
     while (!state.complete) {
+      // A hand left mid-way when the room emptied resumes here, not at the top of the loop,
+      // and by then the model containers are stopped.
+      const wasHeld = this.#pacer.held;
       await this.#pacer.gate();
+      if (this.#epoch === epoch && wasHeld) await this.#awaitModels(epoch);
       // A restart cannot interrupt an in-flight model call, so re-check before every turn.
       if (this.#epoch !== epoch) return;
 

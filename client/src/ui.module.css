@@ -420,3 +420,24 @@
     transition: none !important;
   }
 }
+
+/* --- model services waking up ----------------------------------------------------------- */
+
+.waiting {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--rail);
+  color: #f0e6c8;
+  font-size: 14px;
+  animation: waitingPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes waitingPulse {
+  50% { opacity: 0.55; }
+}

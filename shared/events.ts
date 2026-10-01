@@ -90,6 +90,8 @@ export interface Snapshot {
   speed: Speed;
   paused: boolean;
   finished: boolean;
+  /** Model services the game is holding for, e.g. ["Jeff"]. Empty when nothing is being waited on. */
+  waitingFor: string[];
 }
 
 export interface Reveal {
@@ -121,6 +123,7 @@ export type ServerEvent =
   | { type: 'blinds_increased'; level: number; smallBlind: number; bigBlind: number }
   | { type: 'tournament_finished' }
   | { type: 'speed_changed'; speed: Speed }
+  | { type: 'models_waiting'; waitingFor: string[] }
   | { type: 'paused' }
   | { type: 'resumed' };
 
@@ -168,6 +171,7 @@ export const SERVER_EVENT_TYPES: ServerEventType[] = [
   'blinds_increased',
   'tournament_finished',
   'speed_changed',
+  'models_waiting',
   'paused',
   'resumed',
 ];

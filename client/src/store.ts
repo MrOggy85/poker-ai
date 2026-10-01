@@ -34,6 +34,7 @@ export function emptyView(): View {
     speed: 'normal',
     paused: false,
     finished: false,
+    waitingFor: [],
     winners: [],
     shown: {},
     connected: false,
@@ -186,6 +187,9 @@ export function reduce(view: View, event: ServerEvent): View {
 
     case 'speed_changed':
       return { ...view, speed: event.speed };
+
+    case 'models_waiting':
+      return { ...view, waitingFor: event.waitingFor };
 
     case 'paused':
       return { ...view, paused: true };
