@@ -19,7 +19,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-DOCKER="docker -c default"
+DOCKER="docker -c rootless"
 CONTAINER_NAME=poker-ai
 IMAGE=poker-ai:latest
 PORT=8780
@@ -42,10 +42,12 @@ $DOCKER rm -f $CONTAINER_NAME >/dev/null 2>&1 || true
 # 127.0.0.1 inside a container is the container, not the host, so the model services are
 # addressed by container name on a shared network. models-up.sh joins them to it.
 echo_yellow "starting..."
+# -u 0:0: on the rootless daemon container uid 0 is oskar on the host, so deploy/data stays
+# oskar-owned. A fixed uid like 1000 would map to 100999 and could not write it.
 $DOCKER run \
   -d \
   --name $CONTAINER_NAME \
-  -u 1000 \
+  -u 0:0 \
   --restart unless-stopped \
   --cpus=2 \
   --network $NETWORK \

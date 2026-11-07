@@ -20,7 +20,7 @@
 #   models-ondemand.sh status   show container state and the idle timer
 #   models-ondemand.sh up|down  force the models on or off right now
 PATH=/usr/local/bin:/usr/bin:/bin
-DOCKER="docker -c default"
+DOCKER="docker -c rootless"
 MODELS="poker-llama"
 JEFF=$HOME/jeff/jeff.sh
 APP_URL=http://127.0.0.1:8780/api/debug

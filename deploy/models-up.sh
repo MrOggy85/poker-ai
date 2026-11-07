@@ -2,8 +2,8 @@
 # Starts the model services: llama.cpp (monologues) here, and Jeff (decisions) via ~/jeff.
 # Separate from the app so the app can be restarted without evicting 2 GB of loaded weights.
 #
-# The active docker context on this machine is `rootless` but the daemon running everything
-# is rootful, hence `-c default` on every call.
+# Everything runs on the rootless daemon (since 2026-11-07); every call names it with `-c
+# rootless` rather than trusting the active context.
 if [[ -f "${UTIL_SH:-$HOME/scripts/util.sh}" ]]; then
   . "${UTIL_SH:-$HOME/scripts/util.sh}"
 else
@@ -15,7 +15,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-DOCKER="docker -c default"
+DOCKER="docker -c rootless"
 NETWORK=poker-net
 WEIGHTS="$PWD/models/weights"
 JEFF_PORT=8781
@@ -45,7 +45,7 @@ $DOCKER run -d \
   --cpus=2 \
   -p 127.0.0.1:$LLAMA_PORT:8080 \
   -v "$WEIGHTS:/weights:ro" \
-  ghcr.io/ggml-org/llama.cpp:server \
+  ghcr.io/ggml-org/llama.cpp:server@sha256:f9115c95639e60abc09d4ea83b26fd4d56c66aa1174594393335a514da00c283 \
   -m "/weights/$GGUF" --host 0.0.0.0 --port 8080 -t 2 -c 1024 -n 48 \
   || { echo_red "poker-llama failed to start"; exit 1; }
 
@@ -65,6 +65,6 @@ for name in "llama:$LLAMA_PORT" "jeff:$JEFF_PORT"; do
   if [[ "$code" == "200" ]]; then
     echo_green "$label is up on 127.0.0.1:$port"
   else
-    echo_red "$label did not become healthy - check: docker -c default logs poker-$label"
+    echo_red "$label did not become healthy - check: docker -c rootless logs poker-$label"
   fi
 done

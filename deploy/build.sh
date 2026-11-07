@@ -18,6 +18,6 @@ IMAGE=poker-ai:latest
 BUILD_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo dev)
 
 echo_yellow "building $IMAGE (BUILD_HASH=$BUILD_HASH)..."
-docker -c default build --build-arg "BUILD_HASH=$BUILD_HASH" -t $IMAGE . \
+docker -c rootless build --build-arg "BUILD_HASH=$BUILD_HASH" -t $IMAGE . \
   && echo_green "built $IMAGE" \
   || { echo_red "build failed"; exit 1; }
