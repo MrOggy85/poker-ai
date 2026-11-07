@@ -63,4 +63,4 @@ deploy-up:
 	./deploy/start.sh
 
 deploy-logs:
-	docker -c default logs -f poker-ai
+	docker -c rootless logs -f poker-ai

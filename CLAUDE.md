@@ -48,8 +48,8 @@ on this machine.
   the JS API. **Never add a project-local `.npmrc` with `ignore-scripts=false`** to "fix" a
   build error - that silently undoes the operator's supply-chain hardening. If the binary ever
   does go missing, point `ESBUILD_BINARY_PATH` at it from the Makefile instead.
-- **The docker context is wrong by default** - the active context is `rootless` but the daemon
-  is rootful. Always `docker -c default`.
+- **Name the docker daemon** - everything runs on the rootless daemon since 2026-11-07.
+  Always `docker -c rootless`, never trust the active context.
 - **No `Math.random` anywhere in `api/`.** Everything random draws from the seeded `Rng` in
   `shared/rng.ts`, or games stop being replayable from their seed.
 - **Information hiding is a hard requirement** with a test behind it: a bot may never see
