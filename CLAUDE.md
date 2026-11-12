@@ -1,5 +1,19 @@
 # poker-ai
 
+**Retired 2026-11-12.** A finished experiment nobody watches, so it no longer runs. Nothing was
+deleted: the code, `data/`, `models/`, the `poker-ai` image and both containers are kept, stopped,
+with `restart=no`. What was turned off, so a revival knows what to turn back on:
+
+- the `poker-ai` app container (`poker-llama` had already been idle-stopped by the on-demand job);
+- the user-cron line running `deploy/models-ondemand.sh` every minute;
+- the `svc:poker` Tailscale Service (removed from `tailscale serve`, and the console entry).
+
+To bring it back: `make deploy-up`, re-add the cron line from `deploy/models-ondemand.sh`'s
+header, and serve it. New pages on this machine go through the host's reverse proxy rather
+than a `svc:` entry, so it would come back as one proxy route to `127.0.0.1:8780`, not
+`tailscale serve`. The Jeff classifier it used is a separate service and
+is not part of this repo.
+
 A Texas Hold'em tournament played entirely by AI bots and watched live in a browser.
 This file is what you need to know to work on it. The original specification was removed
 once v1 was complete; `reports/2026-10-01-spec-coverage.md` records what it asked for, what
